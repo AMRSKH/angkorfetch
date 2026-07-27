@@ -18,6 +18,24 @@ curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | ba
 cargo install angkorfetch
 ```
 
+## Uninstall & Clean
+
+```bash
+# Installed via cargo
+cargo uninstall angkorfetch
+# Clean cargo build cache (optional)
+cargo cache -a
+
+# Installed via get.sh (Linux/macOS)
+rm ~/.local/bin/angkorfetch
+
+# Installed via get.ps1 (Windows)
+rm $env:LOCALAPPDATA\AngkorFetch\bin\angkorfetch.exe
+
+# Installed via Homebrew (macOS)
+brew uninstall angkorfetch
+```
+
 ## Usage
 
 ```
