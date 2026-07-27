@@ -4,18 +4,19 @@ A fast, cross-platform system-info ("fetch") tool for Windows, Linux, and macOS,
 
 ## Quick Install
 
-| Platform | Command |
-|---|---|
-| **macOS** | `brew install AMRSKH/tap/angkorfetch` |
-| **Windows** | `winget install AMRSKH.AngkorFetch` |
-| **Windows (no winget)** | `irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 \| iex` |
-| **Linux (any distro)** | `curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh \| bash` |
-| **Linux (Debian/Ubuntu)** | `sudo dpkg -i angkorfetch_1.0.0_amd64.deb` |
-| **Linux (Fedora/RHEL)** | `sudo rpm -i angkorfetch-1.0.0-1.x86_64.rpm` |
-| **Linux (Snap)** | `snap install angkorfetch` |
-| **Linux (Flatpak)** | `flatpak install flathub io.github.AMRSKH.angkorfetch` |
-| **Any OS (cargo)** | `cargo install angkorfetch` |
-| **Any OS (source)** | `bash install.sh` / `.\install.ps1` |
+```bash
+# macOS
+brew install AMRSKH/tap/angkorfetch
+
+# Windows
+irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
+
+# Linux
+curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+
+# Any OS (with Rust)
+cargo install angkorfetch
+```
 
 ## Usage
 
