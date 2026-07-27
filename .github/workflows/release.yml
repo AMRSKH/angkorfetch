@@ -113,30 +113,26 @@ jobs:
 
       - name: Build .rpm package
         run: |
+          VER="${GITHUB_REF_NAME#v}"
           mkdir -p rpmbuild/{SOURCES,SPECS,RPMS,SRPMS,BUILD}
-          git archive --format=tar.gz -o rpmbuild/SOURCES/angkorfetch.tar.gz --prefix="angkorfetch/" HEAD
+          cp target/release/angkorfetch rpmbuild/SOURCES/
           cat > rpmbuild/SPECS/angkorfetch.spec <<EOF
           Name: angkorfetch
-          Version: $(echo ${{ github.ref_name }} | sed 's/^v//')
+          Version: $VER
           Release: 1%{?dist}
           Summary: A fast, cross-platform system fetch tool
           License: MIT
           URL: https://github.com/AMRSKH/angkorfetch
-          Source0: angkorfetch.tar.gz
-          BuildRequires: cargo
+          Source0: angkorfetch
           %description
           AngkorFetch is a fast, cross-platform system-info ("fetch") tool.
-          %prep
-          %setup -q -n angkorfetch
-          %build
-          cargo build --release --locked
           %install
-          install -Dm755 target/release/angkorfetch %{buildroot}%{_bindir}/angkorfetch
+          install -Dm755 %{_sourcedir}/angkorfetch %{buildroot}%{_bindir}/angkorfetch
           %files
           %{_bindir}/angkorfetch
           %license LICENSE
           EOF
-          rpmbuild --define "_topdir $PWD/rpmbuild" -ba rpmbuild/SPECS/angkorfetch.spec
+          rpmbuild --define "_topdir $PWD/rpmbuild" -bb rpmbuild/SPECS/angkorfetch.spec --nodeps
           cp rpmbuild/RPMS/x86_64/*.rpm .
 
       - uses: actions/upload-artifact@v4
