@@ -78,7 +78,7 @@ OS · Host · Model · CPU · GPU · Memory · Disk · Display · Battery · WiF
  ╚═╝  ╚═╝ ╚═╝  ╚═══╝  ╚═════╝  ╚═╝  ╚═╝  ╚═════╝  ╚═╝  ╚═╝
 
 ╔═══════════════════════════════════════════════════════════════════════╗
-║ AngkorFetch v1.0.0  •  Fast Cross-Platform System Fetch  •  by AMSDev ║
+║ AngkorFetch v1.0.1  •  Fast Cross-Platform System Fetch  •  by AMSDev ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
  ● OS         ❯ Windows 11 Pro - 25H2 [x86_64]

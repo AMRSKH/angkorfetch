@@ -1,5 +1,5 @@
 Name:     angkorfetch
-Version:  1.0.0
+Version:  1.0.1
 Release:  1%{?dist}
 Summary:  A fast, cross-platform system fetch tool
 
@@ -32,5 +32,5 @@ install -Dm644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 %license LICENSE
 
 %changelog
-* Mon Jul 27 2026 AMRSKH <inforithseyhacambo@gmail.com> - 1.0.0-1
+* Mon Jul 27 2026 AMRSKH <inforithseyhacambo@gmail.com> - 1.0.1-1
 - Initial RPM package
