@@ -1,6 +1,6 @@
 name: angkorfetch
 base: core22
-version: "1.2.0"
+version: "1.0.0"
 summary: A fast, cross-platform system fetch tool
 description: |
   AngkorFetch is a fast, cross-platform system-info ("fetch") tool for
@@ -24,7 +24,7 @@ apps:
 parts:
   angkorfetch:
     source: https://github.com/AMRSKH/angkorfetch.git
-    source-tag: v1.2.0
+    source-tag: v1.0.0
     plugin: rust
     build-packages:
       - gcc

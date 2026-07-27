@@ -1,6 +1,6 @@
 [package]
 name = "angkorfetch"
-version = "1.2.0"
+version = "1.0.0"
 edition = "2021"
 description = "A fast, cross-platform system fetch tool"
 repository = "https://github.com/AMRSKH/angkorfetch"
