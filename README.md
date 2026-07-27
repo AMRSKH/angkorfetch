@@ -1,96 +1,92 @@
 # AngkorFetch
 
-A fast, cross-platform system-info ("fetch") tool for Windows, Linux, and macOS, written in Rust.
+**ឧបករណ៍បង្ហាញព័ត៌មានប្រព័ន្ធ** សម្រាប់ Windows, Linux និង macOS សរសេរដោយ Rust ។
 
-## Quick Install
+A fast, cross-platform system-info ("fetch") tool written in Rust.
 
+---
+
+## ដំឡើង / Install
+
+**macOS**
 ```bash
-# macOS
 brew install AMRSKH/tap/angkorfetch
+```
 
-# Windows
+**Windows**
+```powershell
 irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
+```
 
-# Linux
+**Linux**
+```bash
 curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+```
 
-# Any OS (with Rust)
+**គ្រប់ប្រព័ន្ធ / Any OS (Rust)**
+```bash
 cargo install angkorfetch
 ```
 
-## Uninstall & Clean
+---
+
+## លុប / Uninstall
 
 ```bash
-# Installed via cargo
+# cargo
 cargo uninstall angkorfetch
-# Clean cargo build cache (optional)
-cargo cache -a
 
-# Installed via get.sh (Linux/macOS)
+# get.sh (Linux/macOS)
 rm ~/.local/bin/angkorfetch
 
-# Installed via get.ps1 (Windows)
+# get.ps1 (Windows)
 rm $env:LOCALAPPDATA\AngkorFetch\bin\angkorfetch.exe
 
-# Installed via Homebrew (macOS)
+# Homebrew (macOS)
 brew uninstall angkorfetch
 ```
 
-## Usage
+---
 
-```
-angkorfetch              Show the fetch summary
-angkorfetch -v            Show version / logo banner
-angkorfetch --hinfo       Show detailed hardware info (alias: --hard)
-angkorfetch -h             Show help
-```
+## ប្រើប្រាស់ / Usage
 
-## Features
-
-- **OS** — name, version, build, architecture
-- **Host** — device name
-- **Model** — manufacturer and product name
-- **CPU** — brand, cores, frequency, usage
-- **GPU** — model and usage (NVIDIA + Linux DRM)
-- **Memory** — used / total with percentage
-- **Disk** — used / total with percentage
-- **Display** — resolution and refresh rate
-- **Battery** — charge level, status, health
-- **WiFi** — SSID and signal strength
-- **Network** — local IP address
-- **Shell, Terminal, DE** — environment detection
-- **Packages** — count by manager (winget, dpkg, rpm, pacman, brew, npm, etc.)
-
-### Extended hardware info (`--hinfo`)
-
-```
-Motherboard  — vendor and model
-BIOS         — vendor and version
-Serial       — system serial number
-RAM          — type, speed, manufacturer (e.g. DDR4 @ 3200 MHz)
-Disk Model   — brand/model (e.g. Samsung SSD 970 EVO Plus)
-Disk Type    — NVMe SSD / SATA SSD / HDD
-Ports        — USB, video, audio counts
-WiFi         — SSID with signal percentage
+```bash
+angkorfetch              # បង្ហាញព័ត៌មានប្រព័ន្ធ
+angkorfetch -v            # បង្ហាញកំណែ
+angkorfetch --hinfo       # ព័ត៌មានលម្អិតផ្នែករឹង
+angkorfetch -h            # ជំនួយ
 ```
 
-## Notes
+---
 
-Some fields (RAM speed, disk model, port counts) rely on OS-level tools
-that may need elevated permissions. On Linux, run with `sudo` for the
-most complete output:
+## ព័ត៌មានបង្ហាញ / What it shows
+
+OS · Host · Model · CPU · GPU · Memory · Disk · Display · Battery · WiFi · Network · Shell · Terminal · DE · Packages
+
+**លម្អិត / Details** (`--hinfo`): Motherboard · BIOS · Serial · RAM type/speed · Disk Model/Type · Ports · WiFi signal
+
+---
+
+## កំណត់ចំណាំ / Notes
+
+លើ Linux រត់ជាមួយ `sudo` ដើម្បីទទួលព័ត៌មានពេញលេញ។
+On Linux, run with `sudo` for complete output:
 
 ```bash
 sudo angkorfetch --hinfo
 ```
 
-## Building
+---
+
+## សាងសង់ / Build
 
 ```bash
 cargo build --release
 ./target/release/angkorfetch
 ```
 
-## License
+---
+
+## អាជ្ញាប័ណ្ឌ / License
 
 MIT
