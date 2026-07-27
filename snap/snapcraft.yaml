@@ -1,0 +1,32 @@
+name: angkorfetch
+base: core22
+version: "1.2.0"
+summary: A fast, cross-platform system fetch tool
+description: |
+  AngkorFetch is a fast, cross-platform system-info ("fetch") tool for
+  Windows, Linux, and macOS, written in Rust. It displays system
+  information (OS, CPU, GPU, memory, disk, network, battery, etc.)
+  in a colorful terminal output.
+
+grade: stable
+confinement: strict
+license: MIT
+
+apps:
+  angkorfetch:
+    command: bin/angkorfetch
+    plugs:
+      - system-observe
+      - network-observe
+      - hardware-observe
+      - process-control
+
+parts:
+  angkorfetch:
+    source: https://github.com/AMRSKH/angkorfetch.git
+    source-tag: v1.2.0
+    plugin: rust
+    build-packages:
+      - gcc
+      - pkg-config
+      - libssl-dev

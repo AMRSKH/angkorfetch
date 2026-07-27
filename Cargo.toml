@@ -1,0 +1,18 @@
+[package]
+name = "angkorfetch"
+version = "1.2.0"
+edition = "2021"
+description = "A fast, cross-platform system fetch tool"
+repository = "https://github.com/AMRSKH/angkorfetch"
+homepage = "https://github.com/AMRSKH/angkorfetch"
+license = "MIT"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[dependencies]
+sysinfo = "0.39"
+colored = "3"

@@ -1,0 +1,183 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            asset: angkorfetch-linux-x86_64.tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            asset: angkorfetch-linux-aarch64.tar.gz
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            asset: angkorfetch-macos-x86_64.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            asset: angkorfetch-macos-aarch64.tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            asset: angkorfetch-windows-x86_64.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (for aarch64-linux cross-compilation)
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: matrix.use_cross != true
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ github.workspace }}/${{ matrix.asset }} angkorfetch
+          cd ${{ github.workspace }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/${{ matrix.target }}/release/angkorfetch.exe -DestinationPath ${{ matrix.asset }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  packages:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install package tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Build Rust binary
+        run: cargo build --release
+
+      - name: Build .deb package
+        run: |
+          mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin deb-pkg/usr/share/doc/angkorfetch
+          cat > deb-pkg/DEBIAN/control <<EOF
+          Package: angkorfetch
+          Version: ${{ github.ref_name }}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: AMRSKH <inforithseyhacambo@gmail.com>
+          Description: A fast, cross-platform system fetch tool
+          Homepage: https://github.com/AMRSKH/angkorfetch
+          License: MIT
+          EOF
+          cp target/release/angkorfetch deb-pkg/usr/bin/
+          cp README.md deb-pkg/usr/share/doc/angkorfetch/
+          dpkg-deb --build deb-pkg "angkorfetch_${{ github.ref_name }}_amd64.deb"
+
+      - name: Build .rpm package
+        run: |
+          mkdir -p rpmbuild/{SOURCES,SPECS,RPMS,SRPMS,BUILD}
+          git archive --format=tar.gz -o rpmbuild/SOURCES/angkorfetch.tar.gz --prefix="angkorfetch/" HEAD
+          cat > rpmbuild/SPECS/angkorfetch.spec <<EOF
+          Name: angkorfetch
+          Version: $(echo ${{ github.ref_name }} | sed 's/^v//')
+          Release: 1%{?dist}
+          Summary: A fast, cross-platform system fetch tool
+          License: MIT
+          URL: https://github.com/AMRSKH/angkorfetch
+          Source0: angkorfetch.tar.gz
+          BuildRequires: cargo
+          %description
+          AngkorFetch is a fast, cross-platform system-info ("fetch") tool.
+          %prep
+          %setup -q -n angkorfetch
+          %build
+          cargo build --release --locked
+          %install
+          install -Dm755 target/release/angkorfetch %{buildroot}%{_bindir}/angkorfetch
+          %files
+          %{_bindir}/angkorfetch
+          %license LICENSE
+          EOF
+          rpmbuild --define "_topdir $PWD/rpmbuild" -ba rpmbuild/SPECS/angkorfetch.spec
+          cp rpmbuild/RPMS/x86_64/*.rpm .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            *.deb
+            *.rpm
+
+  checksums:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum * > checksums.txt
+          mv checksums.txt ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: checksums.txt
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, checksums, packages]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

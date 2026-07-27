@@ -1,0 +1,25 @@
+id: io.github.AMRSKH.angkorfetch
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: angkorfetch
+
+finish-args:
+  - --share=network
+  - --socket=x11
+
+modules:
+  - name: angkorfetch
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --locked
+      - install -Dm755 target/release/angkorfetch -t /app/bin/
+    sources:
+      - type: git
+        url: https://github.com/AMRSKH/angkorfetch.git
+        tag: v1.2.0
+    build-options:
+      env:
+        - CARGO_HOME: /run/build/angkorfetch/cargo
+    cleanup:
+      - /cargo

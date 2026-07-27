@@ -1,0 +1,6 @@
+*.exe
+*.pdb
+*.o
+*.d
+/target
+homebrew-tap/
