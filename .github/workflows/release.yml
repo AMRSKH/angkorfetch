@@ -94,10 +94,11 @@ jobs:
 
       - name: Build .deb package
         run: |
+          VER="${GITHUB_REF_NAME#v}"
           mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin deb-pkg/usr/share/doc/angkorfetch
           cat > deb-pkg/DEBIAN/control <<EOF
           Package: angkorfetch
-          Version: ${{ github.ref_name }}
+          Version: $VER
           Section: utils
           Priority: optional
           Architecture: amd64
@@ -108,7 +109,7 @@ jobs:
           EOF
           cp target/release/angkorfetch deb-pkg/usr/bin/
           cp README.md deb-pkg/usr/share/doc/angkorfetch/
-          dpkg-deb --build deb-pkg "angkorfetch_${{ github.ref_name }}_amd64.deb"
+          dpkg-deb --build deb-pkg "angkorfetch_${VER}_amd64.deb"
 
       - name: Build .rpm package
         run: |
