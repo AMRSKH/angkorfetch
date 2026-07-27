@@ -130,7 +130,6 @@ jobs:
           install -Dm755 %{_sourcedir}/angkorfetch %{buildroot}%{_bindir}/angkorfetch
           %files
           %{_bindir}/angkorfetch
-          %license LICENSE
           EOF
           rpmbuild --define "_topdir $PWD/rpmbuild" -bb rpmbuild/SPECS/angkorfetch.spec --nodeps
           cp rpmbuild/RPMS/x86_64/*.rpm .
@@ -165,7 +164,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, checksums, packages]
+    needs: [build, checksums]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
