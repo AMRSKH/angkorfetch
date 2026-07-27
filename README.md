@@ -78,15 +78,6 @@ sudo angkorfetch --hinfo
 
 ---
 
-## សាងសង់ / Build
-
-```bash
-cargo build --release
-./target/release/angkorfetch
-```
-
----
-
 ## អាជ្ញាប័ណ្ឌ / License
 
 MIT
