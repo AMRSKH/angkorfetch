@@ -12,7 +12,27 @@ permissions:
   contents: write
 
 jobs:
+  # Gates every downstream job, including the release. Cross-compiled targets in
+  # `build` cannot execute their own binaries, so the suite runs here on the
+  # three native hosts instead. `build` depends on this, and `release` depends
+  # transitively, so a failing test blocks publication.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test --release --locked --verbose
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -141,9 +161,11 @@ jobs:
             *.deb
             *.rpm
 
+  # Must wait on `packages` as well as `build`, otherwise checksums.txt is
+  # generated from a partial artifact set and silently omits the .deb and .rpm.
   checksums:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, packages]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -162,15 +184,44 @@ jobs:
           name: checksums
           path: checksums.txt
 
+  # `packages` is required here, not just implied. Without it the release job
+  # raced ahead and published before the .deb/.rpm finished uploading.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, checksums]
+    needs: [build, packages, checksums]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      # Ordering via `needs` is necessary but not sufficient: a future refactor
+      # could reintroduce a gap without anyone noticing until a release ships
+      # short. Fail loudly here instead of publishing an incomplete release.
+      - name: Verify all expected artifacts are present
+        run: |
+          cd artifacts
+          echo "Downloaded:"
+          ls -1
+          missing=0
+          for f in \
+            angkorfetch-linux-x86_64.tar.gz \
+            angkorfetch-linux-aarch64.tar.gz \
+            angkorfetch-macos-x86_64.tar.gz \
+            angkorfetch-macos-aarch64.tar.gz \
+            angkorfetch-windows-x86_64.zip \
+            checksums.txt
+          do
+            [ -f "$f" ] || { echo "::error::missing expected artifact $f"; missing=1; }
+          done
+          for pattern in '*.deb' '*.rpm'; do
+            compgen -G "$pattern" > /dev/null \
+              || { echo "::error::no artifact matching $pattern"; missing=1; }
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "All expected artifacts present."
+        shell: bash
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
