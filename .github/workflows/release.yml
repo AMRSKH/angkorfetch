@@ -112,9 +112,30 @@ jobs:
       - name: Build Rust binary
         run: cargo build --release
 
-      - name: Build .deb package
+      # Both deb and rpm reject or misinterpret a bare hyphen in a version.
+      # rpm refuses outright ("Illegal char '-'"), and for dpkg a hyphen
+      # separates the upstream version from the Debian revision. Translating to
+      # a tilde is the packaging convention for a prerelease and also sorts
+      # correctly: 1.2.0~rc.1 precedes 1.2.0. For a normal release with no
+      # hyphen this is a no-op.
+      #
+      # `tr` rather than "${VER//-/~}": bash applies tilde expansion to the
+      # replacement string in a pattern substitution, so the shorthand yields
+      # "1.2.0/home/runnerrc.1" instead of "1.2.0~rc.1".
+      - name: Derive package version
+        id: pkgver
         run: |
+          set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
+          PKG_VER="$(printf '%s' "$VER" | tr '-' '~')"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "pkg_version=$PKG_VER" >> "$GITHUB_OUTPUT"
+          echo "tag version: $VER -> package version: $PKG_VER"
+
+      - name: Build .deb package
+        env:
+          VER: ${{ steps.pkgver.outputs.pkg_version }}
+        run: |
           mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin deb-pkg/usr/share/doc/angkorfetch
           cat > deb-pkg/DEBIAN/control <<EOF
           Package: angkorfetch
@@ -132,8 +153,9 @@ jobs:
           dpkg-deb --build deb-pkg "angkorfetch_${VER}_amd64.deb"
 
       - name: Build .rpm package
+        env:
+          VER: ${{ steps.pkgver.outputs.pkg_version }}
         run: |
-          VER="${GITHUB_REF_NAME#v}"
           mkdir -p rpmbuild/{SOURCES,SPECS,RPMS,SRPMS,BUILD}
           cp target/release/angkorfetch rpmbuild/SOURCES/
           cat > rpmbuild/SPECS/angkorfetch.spec <<EOF
