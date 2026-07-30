@@ -85,6 +85,19 @@ loudly instead of shipping a short release.
 A hyphen in the tag marks the release as a prerelease, so `v1.2.0-rc.1` will not
 become "Latest" and will not move the package managers.
 
+### Prerelease versions in packages
+
+`.deb` and `.rpm` versions come from the tag, but neither format accepts a bare
+hyphen. rpm rejects it outright with `Illegal char '-'`, and for dpkg a hyphen
+separates the upstream version from the Debian revision. The `packages` job
+therefore translates hyphens to tildes, which is the packaging convention for a
+prerelease and sorts correctly — `1.2.0~rc.1` precedes `1.2.0`. Normal releases
+contain no hyphen and are unaffected.
+
+This is done with `tr`, not `"${VER//-/~}"`, because bash applies tilde
+expansion to the replacement string in a pattern substitution and the shorthand
+silently produces `1.2.0/home/runnerrc.1`.
+
 ### Expected assets
 
 A correct release publishes 8 assets:
