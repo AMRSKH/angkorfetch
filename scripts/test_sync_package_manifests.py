@@ -25,6 +25,13 @@ import sync_package_manifests as sync
 HERE = Path(__file__).resolve().parent
 GOLDEN = HERE / "testdata" / "angkorfetch.rb.golden"
 
+# Read with universal newlines so the fixture is LF in memory regardless of how
+# git checked it out. Without this, every byte comparison below depends on the
+# platform: the fixture arrives CRLF on a Windows checkout, and the CRLF cases
+# would then convert it a second time into \r\r\n. `.gitattributes` pins the file
+# to LF as well, but the tests should not be the thing that enforces that.
+GOLDEN_TEXT = GOLDEN.read_text(encoding="utf-8")
+
 VERSION = "9.9.9"
 SUMS = {
     "angkorfetch-macos-aarch64.tar.gz": "1" * 64,
@@ -52,7 +59,7 @@ class RenderShapeTests(unittest.TestCase):
         self.rendered = sync.render_homebrew_formula(VERSION, SUMS)
 
     def test_matches_golden_fixture(self) -> None:
-        expected = GOLDEN.read_text(encoding="utf-8", newline="")
+        expected = GOLDEN_TEXT
         # The fixture is maintained by hand and mirrors AMRSKH/homebrew-tap's
         # Formula/angkorfetch.rb, so any change to the template that is not also
         # a deliberate change to the canonical tap shape fails here.
@@ -105,7 +112,7 @@ class UpdateHomebrewTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.formula = self.root / sync.HOMEBREW_FORMULA
-        write(self.formula, GOLDEN.read_text(encoding="utf-8", newline=""))
+        write(self.formula, GOLDEN_TEXT)
 
     def test_rewrites_to_the_requested_version(self) -> None:
         sums = dict(SUMS)
@@ -134,7 +141,7 @@ class UpdateHomebrewTests(unittest.TestCase):
         self.assertNotIn(b"\r\n", blob)
 
     def test_preserves_crlf_line_endings(self) -> None:
-        write(self.formula, GOLDEN.read_text(encoding="utf-8", newline=""), newline="\r\n")
+        write(self.formula, GOLDEN_TEXT, newline="\r\n")
         sync.update_homebrew(self.root, "1.2.3", SUMS)
         blob = read_bytes(self.formula)
         self.assertIn(b"\r\n", blob)
@@ -169,7 +176,7 @@ class UpdateHomebrewTests(unittest.TestCase):
         sync.update_homebrew(self.root, VERSION, SUMS)
         self.assertEqual(
             self.formula.read_text(encoding="utf-8", newline=""),
-            GOLDEN.read_text(encoding="utf-8", newline=""),
+            GOLDEN_TEXT,
         )
 
 
@@ -177,49 +184,49 @@ class CheckHomebrewTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.formula = self.root / sync.HOMEBREW_FORMULA
-        write(self.formula, GOLDEN.read_text(encoding="utf-8", newline=""))
+        write(self.formula, GOLDEN_TEXT)
 
     def test_accepts_the_generated_shape(self) -> None:
         sync.check_homebrew(self.root)  # must not raise
 
     def test_accepts_crlf(self) -> None:
-        write(self.formula, GOLDEN.read_text(encoding="utf-8", newline=""), newline="\r\n")
+        write(self.formula, GOLDEN_TEXT, newline="\r\n")
         sync.check_homebrew(self.root)
 
     def test_rejects_a_reintroduced_version_stanza(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace('  license "MIT"', '  version "9.9.9"\n  license "MIT"'))
         with self.assertRaises(sync.SyncError):
             sync.check_homebrew(self.root)
 
     def test_rejects_hardware_cpu_conditionals(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace("    on_arm do", "    if Hardware::CPU.arm?"))
         with self.assertRaises(sync.SyncError):
             sync.check_homebrew(self.root)
 
     def test_rejects_a_hand_edited_stanza(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace('license "MIT"', 'license "Apache-2.0"'))
         with self.assertRaises(sync.SyncError):
             sync.check_homebrew(self.root)
 
     def test_rejects_mixed_versions(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace("v9.9.9/angkorfetch-linux-x86_64", "v8.8.8/angkorfetch-linux-x86_64"))
         with self.assertRaises(sync.SyncError) as caught:
             sync.check_homebrew(self.root)
         self.assertIn("mixes versions", str(caught.exception))
 
     def test_rejects_a_url_without_a_following_sha256(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace('      sha256 "' + "1" * 64 + '"\n', ""))
         with self.assertRaises(sync.SyncError) as caught:
             sync.check_homebrew(self.root)
         self.assertIn("no sha256", str(caught.exception))
 
     def test_error_names_the_regeneration_command(self) -> None:
-        text = GOLDEN.read_text(encoding="utf-8", newline="")
+        text = GOLDEN_TEXT
         write(self.formula, text.replace('license "MIT"', 'license "Apache-2.0"'))
         with self.assertRaises(sync.SyncError) as caught:
             sync.check_homebrew(self.root)

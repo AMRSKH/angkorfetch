@@ -1,0 +1,13 @@
+# Without this file, line endings depend on each contributor's core.autocrlf.
+# That is not cosmetic here: the Homebrew formula and its golden fixture are
+# compared byte-for-byte by scripts/sync_package_manifests.py --check and by the
+# test suite, so a CRLF checkout made those comparisons fail on Windows while
+# passing on Linux and macOS.
+#
+# Scoped deliberately to the files this affects. Normalising the whole tree
+# (shell scripts in particular, where a CRLF shebang line fails with
+# "bad interpreter: ...^M") is tracked in issue #4.
+
+# Generated and byte-compared.
+*.rb        text eol=lf
+*.golden    text eol=lf
