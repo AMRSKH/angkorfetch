@@ -9,16 +9,17 @@ the version bump and the two pull request merges.
  tag vX.Y.Z on main
          │
          ▼
- ┌─────────────────────── release.yml ───────────────────────┐
- │  test ──► build (5 targets) ──► packages ──► checksums    │
- │                                     └──────────► release  │
- └───────────────────────────────────────────────────────────┘
-         │  publishes the GitHub Release
-         ▼
- ┌──────────────── sync-packages.yml ────────────────┐
- │  reads checksums.txt ──► rewrites Homebrew/winget │
- │                     └──► opens a pull request     │
- └───────────────────────────────────────────────────┘
+ ┌──────────────────────────── release.yml ────────────────────────────┐
+ │  test ──► build (5 targets) ──► packages ──► checksums              │
+ │                                     └──────────► release            │
+ │                                                     │               │
+ │                                                     ▼               │
+ │                          sync_packages (calls sync-packages.yml)    │
+ └─────────────────────────────────────────────────────────────────────┘
+                                                       │
+                                                       ▼
+                          reads checksums.txt from the published release
+                          rewrites Homebrew + winget, opens a pull request
 ```
 
 ## Cutting a release
@@ -118,9 +119,9 @@ Six assets means the packages were dropped — check the `release` job's
 
 ## sync-packages.yml
 
-Runs when a release is published, and on manual dispatch. It reads
-`checksums.txt` from the release, rewrites the package definitions via
-`scripts/sync_package_manifests.py`, and opens a pull request.
+Called by `release.yml` after a release publishes, and also available on manual
+dispatch. It reads `checksums.txt` from the release, rewrites the package
+definitions via `scripts/sync_package_manifests.py`, and opens a pull request.
 
 ```bash
 # Re-sync a specific release, for example after fixing something by hand
@@ -128,9 +129,36 @@ gh workflow run sync-packages.yml -f tag=v1.1.1
 
 # Preview without pushing a branch or opening a pull request
 gh workflow run sync-packages.yml -f tag=v1.1.1 -f dry_run=true
+
+# Sync from a prerelease, which is otherwise skipped
+gh workflow run sync-packages.yml -f tag=v1.2.0-rc.1 -f allow_prerelease=true
 ```
 
-It skips prereleases and drafts, and refuses tags without a leading `v`.
+It skips prereleases and drafts, and refuses tags without a leading `v`. The
+prerelease and draft state is read from the release itself rather than the event
+payload, so the guard behaves identically no matter which trigger fired.
+
+### Why it is chained rather than event-driven
+
+`sync-packages.yml` does declare a `release: published` trigger, but that is only
+a fallback for releases published by hand. It does **not** fire for our own
+releases.
+
+GitHub suppresses workflow triggers for events raised by `GITHUB_TOKEN`, to stop
+workflows recursively triggering themselves. `release.yml` publishes via
+`softprops/action-gh-release` using `GITHUB_TOKEN`, so the resulting
+`release: published` event never starts a workflow run. This was confirmed
+empirically: after publishing `v1.1.2-pmtest.2`, `sync-packages.yml` had zero
+runs despite being active on the default branch.
+
+`release.yml` therefore calls it directly as a reusable workflow
+(`uses: ./.github/workflows/sync-packages.yml`) in a `sync_packages` job that
+needs `release`. That is deterministic, keeps the result visible in the same run,
+and does not depend on event delivery.
+
+Note that the calling job must grant `pull-requests: write` explicitly. A
+reusable workflow cannot escalate beyond the caller's token permissions, and
+`release.yml` only grants `contents: write` at the top level.
 
 ### Why package definitions lag
 
