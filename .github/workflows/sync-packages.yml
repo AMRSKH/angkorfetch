@@ -1,0 +1,215 @@
+name: Sync package definitions
+
+# Keeps the Homebrew formula and winget manifests current after a release.
+#
+# These definitions pin a sha256 of release artifacts, so they cannot be bumped
+# in the same pull request that creates a tag -- the artifacts do not exist yet.
+# That left them permanently one version behind and required a manual follow-up
+# after every release. This workflow closes that gap.
+#
+# Idempotency comes from three properties:
+#   * the sync script writes identical bytes when already current, so `git diff`
+#     is authoritative for "is there anything to do"
+#   * the branch name is derived from the version, so a rerun reuses it
+#   * the branch is only pushed when its tree actually differs from the remote,
+#     and a pull request is only created when one is not already open
+# Rerunning therefore produces no duplicate commits and no duplicate PRs.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync from, e.g. v1.1.1"
+        required: true
+        type: string
+      dry_run:
+        description: "Compute and show changes without pushing or opening a PR"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-packages
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Inputs are passed through env rather than interpolated into the script
+      # body, so a crafted tag name cannot inject shell commands.
+      - name: Resolve target release
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          IS_DRAFT: ${{ github.event.release.draft }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="$RELEASE_TAG"
+            # Prereleases must not move the stable package managers, and drafts
+            # have no downloadable assets at all.
+            if [ "$IS_PRERELEASE" = "true" ]; then
+              echo "::notice::$tag is a prerelease; leaving package definitions untouched"
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "::notice::$tag is a draft; nothing to sync"
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          case "$tag" in
+            v*) ;;
+            *) echo "::error::tag '$tag' does not look like a release tag (expected a leading v)"; exit 1 ;;
+          esac
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+          echo "Syncing package definitions to $tag"
+
+      # Package definitions live on main, not on the tag, so check out main
+      # explicitly. On a release event the default ref would be the tag, which
+      # still carries the previous version's manifests.
+      - uses: actions/checkout@v4
+        if: steps.target.outputs.proceed == 'true'
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.PACKAGE_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        if: steps.target.outputs.proceed == 'true'
+        with:
+          python-version: "3.x"
+
+      - name: Download checksums from the release
+        if: steps.target.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --pattern checksums.txt --dir . --clobber
+          echo "checksums.txt from $TAG:"
+          cat checksums.txt
+
+      - name: Rewrite package definitions
+        if: steps.target.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          python scripts/sync_package_manifests.py \
+            --version "$VERSION" \
+            --checksums checksums.txt \
+            --summary-out /tmp/summary.md
+          rm -f checksums.txt
+
+      - name: Detect whether anything changed
+        id: diff
+        if: steps.target.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "::notice::package definitions are already current; nothing to do"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat
+            git --no-pager diff
+          fi
+
+      - name: Dry run summary
+        if: steps.target.outputs.proceed == 'true' && steps.diff.outputs.changed == 'true' && inputs.dry_run
+        run: |
+          echo "::notice::dry run requested; not pushing a branch or opening a pull request"
+          cat /tmp/summary.md
+
+      - name: Commit, push, and open a pull request
+        if: steps.target.outputs.proceed == 'true' && steps.diff.outputs.changed == 'true' && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGE_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.target.outputs.tag }}
+          VERSION: ${{ steps.target.outputs.version }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          branch="automation/sync-packages-${TAG}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git switch -c "$branch"
+          git add -A
+          git commit -m "Sync package definitions to ${TAG}" \
+            -m "Homebrew formula and winget manifests updated from the ${TAG} release checksums. Opened automatically by the sync-packages workflow."
+
+          # Only push when the resulting tree differs from what is already on the
+          # remote branch. This is what stops a rerun creating a duplicate commit.
+          push=true
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch --quiet origin "$branch"
+            if [ "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "origin/${branch}^{tree}")" ]; then
+              echo "::notice::origin/$branch already holds these exact contents; not pushing"
+              push=false
+            fi
+          fi
+          if [ "$push" = "true" ]; then
+            git push --force-with-lease origin "$branch"
+          fi
+
+          body_file=/tmp/pr-body.md
+          {
+            echo "Updates the Homebrew formula and winget manifests to **${VERSION}**."
+            echo
+            echo "Opened automatically by the \`sync-packages\` workflow, because both"
+            echo "definitions pin a \`sha256\` of release artifacts and therefore cannot be"
+            echo "bumped in the pull request that creates the tag."
+            echo
+            echo "## Source release"
+            echo
+            echo "${GITHUB_SERVER_URL}/${REPO}/releases/tag/${TAG}"
+            echo
+            echo "## Updated artifacts"
+            echo
+            cat /tmp/summary.md
+            echo
+            echo "Every hash above is taken verbatim from that release's \`checksums.txt\`."
+            echo
+            echo "## Before merging"
+            echo
+            echo "- Confirm each URL resolves and its hash matches the published artifact."
+            echo "- Run \`winget validate --manifest winget-pkgs/manifests/a/AMRSKH/AngkorFetch/${VERSION}\`."
+            echo "- Run \`brew audit --strict\` on macOS if available."
+            echo
+            echo "Workflow run: ${RUN_URL}"
+          } > "$body_file"
+
+          existing="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "::notice::pull request #$existing is already open for $branch; refreshing its description"
+            gh pr edit "$existing" --body-file "$body_file"
+            gh pr view "$existing" --json url --jq .url
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "Sync package definitions to ${TAG}" \
+              --body-file "$body_file"
+          fi
