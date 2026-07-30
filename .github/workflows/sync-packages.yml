@@ -244,10 +244,34 @@ jobs:
             echo "::notice::pull request #$existing is already open for $branch; refreshing its description"
             gh pr edit "$existing" --body-file "$body_file"
             gh pr view "$existing" --json url --jq .url
+            exit 0
+          fi
+
+          # Opening the pull request is the only step that needs a permission the
+          # repository may withhold. "Allow GitHub Actions to create and approve
+          # pull requests" is off by default. Treat that specific refusal as a
+          # soft failure: the branch is already pushed, so a maintainer loses
+          # nothing but a click, and failing here would otherwise mark an
+          # otherwise-successful release run as failed. Any other error is real
+          # and still fails the job.
+          if output="$(gh pr create \
+                --base main \
+                --head "$branch" \
+                --title "Sync package definitions to ${TAG}" \
+                --body-file "$body_file" 2>&1)"; then
+            printf '%s\n' "$output"
+          elif printf '%s' "$output" | grep -q 'not permitted to create or approve pull requests'; then
+            echo "::warning::GitHub Actions is not permitted to open pull requests in this repository, so the branch was pushed but no pull request was created."
+            echo "::warning::Open it here: ${GITHUB_SERVER_URL}/${REPO}/compare/main...${branch}?expand=1"
+            echo "::warning::To automate this fully, either enable Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests', or add a PACKAGE_SYNC_TOKEN secret. See RELEASING.md."
+            {
+              echo "### Package sync branch pushed, pull request not opened"
+              echo
+              echo "GitHub Actions lacks permission to open pull requests in this repository."
+              echo
+              echo "[Open the pull request for \`${branch}\`](${GITHUB_SERVER_URL}/${REPO}/compare/main...${branch}?expand=1)"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "Sync package definitions to ${TAG}" \
-              --body-file "$body_file"
+            echo "::error::$output"
+            exit 1
           fi

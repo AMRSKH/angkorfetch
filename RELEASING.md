@@ -184,6 +184,42 @@ duplicate pull requests. Three properties combine to guarantee that:
    request is created only when one is not already open. If a pull request
    exists, its description is refreshed instead.
 
+### One-time setup required for full automation
+
+By default GitHub does **not** allow Actions to open pull requests, so the sync
+pushes its branch and then stops with a warning:
+
+```
+GitHub Actions is not permitted to create or approve pull requests
+```
+
+Nothing is lost when this happens — the branch is pushed and the job prints a
+compare link — but the last manual step remains. Pick one of:
+
+1. **Enable the repository setting.** Settings → Actions → General → Workflow
+   permissions → *Allow GitHub Actions to create and approve pull requests*, or:
+
+   ```bash
+   gh api -X PUT repos/AMRSKH/angkorfetch/actions/permissions/workflow \
+     -F default_workflow_permissions=read \
+     -F can_approve_pull_request_reviews=true
+   ```
+
+   Be aware that this single checkbox governs both *creating* and *approving*
+   pull requests. If branch protection ever requires reviews, a workflow could
+   satisfy that requirement itself. Pair it with a CODEOWNERS review requirement
+   if that matters.
+
+2. **Add a `PACKAGE_SYNC_TOKEN` secret** holding a personal access token with
+   `contents: write` and `pull-requests: write`. The workflow prefers it
+   automatically and falls back to `GITHUB_TOKEN`. This avoids the
+   self-approval concern and has the added benefit that CI *does* run on the
+   resulting pull requests, which `GITHUB_TOKEN` cannot trigger.
+
+This deliberately fails soft rather than hard. The sync runs inside the release
+workflow, so a hard failure would mark an otherwise-successful release as failed.
+Any error other than this specific permission refusal still fails the job.
+
 ### CI does not run on the auto-opened pull request
 
 Pull requests opened with the default `GITHUB_TOKEN` do not trigger further
