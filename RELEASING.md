@@ -33,7 +33,7 @@ the version bump and the two pull request merges.
    - `linux/rpm/angkorfetch.spec` — `Version` plus a new `%changelog` entry
    - `linux/rpm/build-rpm.sh` and `linux/deb/build-deb.sh` — `VERSION`
 
-   Do **not** touch `HomebrewFormula/` or `winget-pkgs/` here. See
+   Do **not** touch `Formula/` or `winget-pkgs/` here. See
    [Why package definitions lag](#why-package-definitions-lag).
 
 2. **Merge the pull request** once CI is green.
@@ -162,7 +162,7 @@ reusable workflow cannot escalate beyond the caller's token permissions, and
 
 ### Why package definitions lag
 
-`HomebrewFormula/angkorfetch.rb` and the winget manifests pin a `sha256` of
+`Formula/angkorfetch.rb` and the winget manifests pin a `sha256` of
 release artifacts. Those artifacts do not exist until the release is published,
 so the definitions cannot be updated in the same pull request that creates the
 tag — the URLs would point at missing files with stale hashes, breaking both
@@ -243,14 +243,60 @@ python scripts/sync_package_manifests.py --version 1.1.1 --checksums checksums.t
 git diff
 ```
 
-Edits are driven by the artifact filename embedded in each existing URL rather
-than by matching the old version string, so the script stays correct no matter
-how far behind the definitions have drifted. It fails rather than writing a
-manifest it cannot verify — if an artifact referenced by a definition is missing
-from `checksums.txt`, or if a `url` is not followed by a checksum line, the job
-errors out.
+The winget manifests are **patched** in place, driven by the artifact filename
+embedded in each existing URL rather than by matching the old version string, so
+the script stays correct no matter how far behind the definitions have drifted.
+Patching is right for them because they carry hand-maintained metadata
+(description, tags, publisher URLs) that no template should own.
+
+`Formula/angkorfetch.rb` is **rendered from a template** instead. A patcher can
+only preserve whatever shape it is handed, and the shape it was handed is one
+`brew audit --strict` rejects:
+
+- an explicit `version` stanza - *"`version 1.1.1` is redundant with version
+  scanned from URL"*;
+- `if Hardware::CPU.arm?` conditionals - rejected by
+  `FormulaAudit/OnSystemConditionals` in favour of `on_arm`/`on_intel`.
+
+Rendering makes the audited shape the only shape the script can emit, so a
+release cannot regenerate the old one.
+
+**Do not edit `Formula/angkorfetch.rb` by hand.** Change the template in
+`render_homebrew_formula()` and update `scripts/testdata/angkorfetch.rb.golden`
+to match. CI enforces this:
+
+```bash
+python scripts/sync_package_manifests.py --check   # committed file == generator output
+python -m unittest discover -s scripts -p 'test_*.py'
+```
+
+`--check` re-renders using the version and digests the file itself declares, so
+it validates shape independently of which release the formula points at. Both run
+in the `test` job of `release.yml`, which `build` and therefore `release` depend
+on, so a formula that would fail audit blocks the tag rather than surfacing after
+publication.
+
+### Why the formula lives in Formula/
+
+Homebrew resolves a tap's formulae from `Formula/`, `HomebrewFormula/` or the tap
+root, but its RuboCop config only applies the `FormulaAudit` cops to paths
+matching `**/{Formula,Casks}/**/*.rb`. `HomebrewFormula/` and the repository root
+both miss that pattern, so a formula placed there is **never audited** - which is
+how the unaudited shape survived as long as it did. `Formula/` is the only
+location where `brew audit --strict` actually inspects it, so both this
+repository and `AMRSKH/homebrew-tap` use it.
+
+The two copies are byte-identical by design; that is what the golden fixture
+pins. The tap is the user-facing one, so it is the canonical shape and this copy
+follows it.
+
+It fails rather than writing a definition it cannot verify: if an artifact
+required by the formula or referenced by a manifest is missing from
+`checksums.txt`, or if a `url` is not followed by a checksum line, the job errors
+out.
 
 ## Verifying a release by hand
+
 
 ```bash
 gh release view vX.Y.Z --json assets --jq '.assets[].name'

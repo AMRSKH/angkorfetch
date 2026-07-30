@@ -28,8 +28,27 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Explicit rather than relying on the image default: `python` is not
+      # guaranteed to resolve on every runner even where `python3` does.
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
       - name: Run tests
         run: cargo test --release --locked --verbose
+
+      # The release automation rewrites the Homebrew formula and winget
+      # manifests, and a formula in the wrong shape is rejected by
+      # `brew audit --strict` only after the release has already been published.
+      # Running these here puts that failure before the tag instead of after it.
+      - name: Run package sync tests
+        run: python -m unittest discover -s scripts -p "test_*.py" --verbose
+
+      # Fails if Formula/angkorfetch.rb is not byte-identical to what the
+      # generator produces, which catches a hand edit as well as template drift.
+      - name: Check the committed Homebrew formula matches the generator
+        run: python scripts/sync_package_manifests.py --check
 
   build:
     needs: test

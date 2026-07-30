@@ -15,18 +15,59 @@ Two design choices matter for the automation built on top of this script:
 
 Line endings are preserved byte-for-byte so a sync never introduces unrelated
 whitespace churn.
+
+The Homebrew formula is *rendered from a template* rather than patched in place.
+The winget manifests are patched, because they carry hand-maintained metadata
+(description, tags, publisher URLs) that no template should own.
+
+That asymmetry is deliberate. A patching approach can only ever preserve
+whatever shape it is handed, so it happily reproduced a formula that
+``brew audit --strict`` rejects:
+
+  - an explicit ``version`` stanza, which audit reports as "redundant with
+    version scanned from URL";
+  - ``if Hardware::CPU.arm?`` conditionals, which ``FormulaAudit/
+    OnSystemConditionals`` rejects in favour of ``on_arm``/``on_intel``.
+
+Rendering makes the audited shape the *only* shape this script can emit, so a
+future release cannot regenerate the old one. ``--check`` enforces the same
+property against the committed file: it re-renders from the version and digests
+the file itself declares and fails on any byte of drift, which also catches hand
+edits.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import re
 import sys
 from pathlib import Path
 
 REPO = "AMRSKH/angkorfetch"
 WINGET_BASE = Path("winget-pkgs/manifests/a/AMRSKH/AngkorFetch")
-HOMEBREW_FORMULA = Path("HomebrewFormula/angkorfetch.rb")
+
+# Homebrew resolves a tap's formulae from `Formula/`, `HomebrewFormula/` or the
+# tap root. `Formula/` is the only one of the three that matches the
+# `**/{Formula,Casks}/**/*.rb` include patterns in Homebrew's RuboCop config, so
+# it is the only one where the `FormulaAudit` cops actually run. The tap uses it
+# for that reason and this copy matches, keeping one canonical shape in one
+# canonical location.
+HOMEBREW_FORMULA = Path("Formula/angkorfetch.rb")
+
+DOWNLOAD_BASE = f"https://github.com/{REPO}/releases/download"
+
+# (os, arch) -> release artifact. Explicit rather than inferred: a filename
+# whose architecture does not match its block installs a binary that cannot run,
+# and a checksum check cannot catch that because the file is intact.
+BREW_ARTIFACTS: dict[tuple[str, str], str] = {
+    ("macos", "arm"): "angkorfetch-macos-aarch64.tar.gz",
+    ("macos", "intel"): "angkorfetch-macos-x86_64.tar.gz",
+    ("linux", "arm"): "angkorfetch-linux-aarch64.tar.gz",
+    ("linux", "intel"): "angkorfetch-linux-x86_64.tar.gz",
+}
+BREW_OSES = ("macos", "linux")
+BREW_ARCHES = ("arm", "intel")
 
 # A release download URL, split so the tag can be swapped while the trailing
 # artifact filename is captured for checksum lookup.
@@ -36,13 +77,18 @@ DOWNLOAD_URL = re.compile(
     r"(?P<filename>[^/\s\"]+)"
 )
 
-RE_BREW_VERSION = re.compile(r'^(?P<lead>\s*version\s+")(?P<value>[^"]*)(?P<tail>".*)$', re.S)
-RE_BREW_SHA = re.compile(r'^(?P<lead>\s*sha256\s+")(?P<value>[0-9a-fA-F]*)(?P<tail>".*)$', re.S)
 RE_WINGET_VERSION = re.compile(r'^(?P<lead>PackageVersion:\s*")(?P<value>[^"]*)(?P<tail>".*)$', re.S)
 RE_WINGET_SHA = re.compile(
     r"^(?P<lead>\s*InstallerSha256:\s*)(?P<value>[0-9a-fA-F]+)(?P<tail>\s*)$", re.S
 )
 RE_SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?$")
+
+# Used only by --check, to recover the version and digests a committed formula
+# declares so it can be re-rendered and compared.
+RE_BREW_URL = re.compile(
+    r'^\s*url\s+"' + re.escape(DOWNLOAD_BASE) + r'/v(?P<version>[^/"]+)/(?P<filename>[^"]+)"'
+)
+RE_BREW_SHA256 = re.compile(r'^\s*sha256\s+"(?P<digest>[0-9a-f]{64})"')
 
 
 class SyncError(Exception):
@@ -106,47 +152,139 @@ def _substitute(line: str, pattern: re.Pattern[str], value: str) -> str:
     return f"{match.group('lead')}{value}{match.group('tail')}"
 
 
+def detect_newline(path: Path) -> str:
+    """Return the line ending already used by a file, defaulting to LF."""
+    if not path.is_file():
+        return "\n"
+    with path.open("rb") as handle:
+        blob = handle.read()
+    return "\r\n" if b"\r\n" in blob else "\n"
+
+
+def render_homebrew_formula(version: str, sums: dict[str, str], newline: str = "\n") -> str:
+    """Render the formula in the shape audited in the AMRSKH/homebrew-tap repo.
+
+    Deliberately omits a ``version`` stanza and uses ``on_arm``/``on_intel``
+    rather than ``Hardware::CPU`` conditionals; both are hard requirements of
+    ``brew audit --strict``. Because the whole file is produced here, neither can
+    be reintroduced by a sync.
+    """
+    tag = f"v{version}"
+
+    os_blocks: list[str] = []
+    for os_name in BREW_OSES:
+        arch_blocks: list[str] = []
+        for arch in BREW_ARCHES:
+            filename = BREW_ARTIFACTS[(os_name, arch)]
+            if filename not in sums:
+                raise SyncError(
+                    f"{filename} is required by the Homebrew formula but absent from checksums.txt"
+                )
+            arch_blocks.append(
+                f"    on_{arch} do\n"
+                f'      url "{DOWNLOAD_BASE}/{tag}/{filename}"\n'
+                f'      sha256 "{sums[filename]}"\n'
+                f"    end"
+            )
+        os_blocks.append(f"  on_{os_name} do\n" + "\n\n".join(arch_blocks) + "\n  end")
+
+    body = "\n\n".join(os_blocks)
+    text = f"""class Angkorfetch < Formula
+  desc "Fast, cross-platform system fetch tool"
+  homepage "https://github.com/{REPO}"
+  # No explicit `version` stanza: Homebrew scans it from the vX.Y.Z path segment
+  # of the URLs below, and `brew audit --strict` rejects restating it.
+  license "MIT"
+
+{body}
+
+  def install
+    bin.install "angkorfetch"
+  end
+
+  test do
+    assert_match "AngkorFetch", shell_output("#{{bin}}/angkorfetch --version")
+  end
+end
+"""
+    if newline != "\n":
+        text = text.replace("\n", newline)
+    return text
+
+
 def update_homebrew(root: Path, version: str, sums: dict[str, str]) -> list[str]:
-    """Rewrite the formula's version and every url/sha256 pair."""
+    """Render the formula from scratch, preserving the file's existing line endings."""
     path = root / HOMEBREW_FORMULA
     if not path.is_file():
         raise SyncError(f"missing {path}")
 
-    tag = f"v{version}"
-    lines = read_lines(path)
-    touched: list[str] = []
+    rendered = render_homebrew_formula(version, sums, detect_newline(path))
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(rendered)
+    return [BREW_ARTIFACTS[(os_name, arch)] for os_name in BREW_OSES for arch in BREW_ARCHES]
+
+
+def parse_homebrew_formula(text: str) -> tuple[str, dict[str, str]]:
+    """Recover the version and {filename: sha256} a formula declares.
+
+    Each ``url`` must be followed by its ``sha256``; that pairing is what makes a
+    formula correct, so a file that violates it is rejected rather than guessed at.
+    """
+    lines = text.splitlines()
+    versions: set[str] = set()
+    sums: dict[str, str] = {}
 
     for idx, line in enumerate(lines):
-        if RE_BREW_VERSION.match(line):
-            lines[idx] = _substitute(line, RE_BREW_VERSION, version)
+        url = RE_BREW_URL.match(line)
+        if not url:
             continue
+        versions.add(url.group("version"))
+        filename = url.group("filename")
 
-        if "url " not in line or "releases/download/" not in line:
-            continue
+        following = next((lines[i] for i in range(idx + 1, len(lines)) if lines[i].strip()), None)
+        digest = RE_BREW_SHA256.match(following) if following else None
+        if not digest:
+            raise SyncError(f"no sha256 line follows the url for {filename}")
+        sums[filename] = digest.group("digest")
 
-        new_line, filenames = _swap_tag(line, tag)
-        if len(filenames) != 1:
-            raise SyncError(f"{path}: expected exactly one artifact URL on line: {line!r}")
-        lines[idx] = new_line
+    if not sums:
+        raise SyncError("no release URLs found in the formula")
+    if len(versions) != 1:
+        raise SyncError(f"formula mixes versions: {sorted(versions)}")
+    return versions.pop(), sums
 
-        filename = filenames[0]
-        if filename not in sums:
-            raise SyncError(
-                f"{path}: {filename} is referenced by the formula but absent from checksums.txt"
-            )
 
-        # Homebrew always pairs a url with the sha256 on the following code line.
-        sha_idx = _next_code_line(lines, idx + 1)
-        if sha_idx is None or not RE_BREW_SHA.match(lines[sha_idx]):
-            raise SyncError(f"{path}: no sha256 line follows the url for {filename}")
-        lines[sha_idx] = _substitute(lines[sha_idx], RE_BREW_SHA, sums[filename])
-        touched.append(filename)
+def check_homebrew(root: Path) -> None:
+    """Fail if the committed formula is not exactly what the generator would emit.
 
-    if not touched:
-        raise SyncError(f"{path}: no release URLs found; refusing to write a formula I cannot verify")
+    Re-renders using the version and digests the file itself declares, so this
+    validates *shape* independently of which release it points at. It therefore
+    catches a hand edit, a reordered block, a reintroduced ``version`` stanza or a
+    url/sha256 pair that drifted apart.
+    """
+    path = root / HOMEBREW_FORMULA
+    if not path.is_file():
+        raise SyncError(f"missing {path}")
 
-    write_lines(path, lines)
-    return touched
+    actual = path.read_text(encoding="utf-8", newline="")
+    version, sums = parse_homebrew_formula(actual)
+    expected = render_homebrew_formula(version, sums, detect_newline(path))
+    if actual == expected:
+        print(f"{HOMEBREW_FORMULA.as_posix()} matches the generated shape (v{version})")
+        return
+
+    diff = difflib.unified_diff(
+        expected.splitlines(),
+        actual.splitlines(),
+        fromfile="expected (generated)",
+        tofile=f"actual ({HOMEBREW_FORMULA.as_posix()})",
+        lineterm="",
+    )
+    raise SyncError(
+        "the committed Homebrew formula is not what the generator produces.\n"
+        "Regenerate it with scripts/sync_package_manifests.py rather than editing by hand.\n"
+        + "\n".join(diff)
+    )
 
 
 def _winget_dir(root: Path, version: str) -> Path:
@@ -215,13 +353,27 @@ def update_winget(root: Path, version: str, sums: dict[str, str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", required=True, help="release version without a leading v")
-    parser.add_argument("--checksums", required=True, type=Path, help="path to checksums.txt")
+    parser.add_argument("--version", help="release version without a leading v")
+    parser.add_argument("--checksums", type=Path, help="path to checksums.txt")
     parser.add_argument("--repo-root", default=Path("."), type=Path)
     parser.add_argument(
         "--summary-out", type=Path, help="write a markdown summary of updated artifacts here"
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify the committed Homebrew formula matches the generated shape, then exit",
+    )
     args = parser.parse_args(argv)
+
+    if args.check:
+        if args.version or args.checksums:
+            parser.error("--check inspects the committed file and takes no --version/--checksums")
+        check_homebrew(args.repo_root)
+        return 0
+
+    if not args.version or not args.checksums:
+        parser.error("--version and --checksums are required unless --check is given")
 
     version = args.version.lstrip("v")
     if not RE_SEMVER.match(version):
@@ -232,6 +384,11 @@ def main(argv: list[str] | None = None) -> int:
     sums = parse_checksums(args.checksums)
     brew = update_homebrew(args.repo_root, version, sums)
     winget = update_winget(args.repo_root, version, sums)
+
+    # The formula was just rendered, so this is a self-check on the renderer
+    # rather than on the file: it fails loudly if the template and the parser ever
+    # disagree, instead of committing something audit would reject later.
+    check_homebrew(args.repo_root)
 
     print(f"synced package definitions to {version}")
     for filename in brew:
