@@ -319,6 +319,13 @@ sudo rpm -e angkorfetch
 
 ## ចូលរួម / Contributing
 
+**សាខា / Branches** — `main` គឺ production (release ត្រូវ tag ពី `main` តែមួយ),
+`dev` គឺសម្រាប់អភិវឌ្ឍ និងសាកល្បង feature ថ្មី។ សូមបើក PR ទៅ `dev` សម្រាប់ feature,
+ទៅ `main` សម្រាប់ការជួសជុលបន្ទាន់ ឬ documentation ។
+`main` is production and the only branch releases are tagged from; `dev` is where
+new features and testing land. Send feature pull requests to `dev`, urgent fixes
+and documentation to `main`. See `RELEASING.md`.
+
 - ចង់បន្ថែម OS ថ្មី? សូមបន្ថែម branch ក្នុង `src/main.rs` រួចបើក PR ។
   Want another OS? Add a branch in `src/main.rs` and open a PR.
 - ចង់ជួយ publish ទៅ AUR, nixpkgs, Scoop ឬ Chocolatey? សូមបើក issue មុន។
