@@ -255,3 +255,23 @@ jobs:
           # any release candidate as "Latest" and expose it to installers and to
           # the package sync automation.
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+  # Chained as a reusable workflow rather than left to the `release: published`
+  # event. A release created by GITHUB_TOKEN does not raise a trigger-capable
+  # event -- GitHub suppresses workflow triggers from token-driven events to
+  # prevent recursion -- so the event-based path never fires for our own
+  # releases. Calling it here makes the sync deterministic and keeps it inside
+  # the same run, where its result is visible alongside the release.
+  #
+  # sync-packages skips prereleases on its own, so no condition is needed here
+  # beyond requiring a tag.
+  sync_packages:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/sync-packages.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

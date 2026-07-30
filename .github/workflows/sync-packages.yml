@@ -7,10 +7,20 @@ name: Sync package definitions
 # That left them permanently one version behind and required a manual follow-up
 # after every release. This workflow closes that gap.
 #
+# Invoked three ways:
+#   * `workflow_call` from release.yml, which is the path that actually runs on a
+#     normal release. A release published by GITHUB_TOKEN does NOT raise a
+#     usable `release` event, because GitHub suppresses workflow triggers from
+#     token-driven events to prevent recursion. Chaining as a reusable workflow
+#     sidesteps that entirely.
+#   * `release: published`, which still fires when a human publishes a release
+#     or a draft by hand.
+#   * `workflow_dispatch`, to re-sync or preview any tag on demand.
+#
 # Idempotency comes from three properties:
 #   * the sync script writes identical bytes when already current, so `git diff`
 #     is authoritative for "is there anything to do"
-#   * the branch name is derived from the version, so a rerun reuses it
+#   * the branch name is derived from the tag, so a rerun reuses it
 #   * the branch is only pushed when its tree actually differs from the remote,
 #     and a pull request is only created when one is not already open
 # Rerunning therefore produces no duplicate commits and no duplicate PRs.
@@ -18,6 +28,22 @@ name: Sync package definitions
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to sync from"
+        required: true
+        type: string
+      dry_run:
+        description: "Compute and show changes without pushing or opening a PR"
+        required: false
+        default: false
+        type: boolean
+      allow_prerelease:
+        description: "Sync even if the release is marked as a prerelease"
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       tag:
@@ -26,6 +52,11 @@ on:
         type: string
       dry_run:
         description: "Compute and show changes without pushing or opening a PR"
+        required: false
+        default: false
+        type: boolean
+      allow_prerelease:
+        description: "Sync even if the release is marked as a prerelease"
         required: false
         default: false
         type: boolean
@@ -47,29 +78,17 @@ jobs:
       - name: Resolve target release
         id: target
         env:
-          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           INPUT_TAG: ${{ inputs.tag }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
-          IS_DRAFT: ${{ github.event.release.draft }}
+          ALLOW_PRERELEASE: ${{ inputs.allow_prerelease }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = "workflow_dispatch" ]; then
-            tag="$INPUT_TAG"
-          else
-            tag="$RELEASE_TAG"
-            # Prereleases must not move the stable package managers, and drafts
-            # have no downloadable assets at all.
-            if [ "$IS_PRERELEASE" = "true" ]; then
-              echo "::notice::$tag is a prerelease; leaving package definitions untouched"
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$IS_DRAFT" = "true" ]; then
-              echo "::notice::$tag is a draft; nothing to sync"
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          tag="${INPUT_TAG:-$RELEASE_TAG}"
+          if [ -z "$tag" ]; then
+            echo "::error::could not determine which release to sync from"
+            exit 1
           fi
 
           case "$tag" in
@@ -77,14 +96,33 @@ jobs:
             *) echo "::error::tag '$tag' does not look like a release tag (expected a leading v)"; exit 1 ;;
           esac
 
+          # Query the release itself rather than trusting the event payload, so
+          # the guard behaves identically for the call, release, and dispatch
+          # triggers. The payload is only populated for one of the three.
+          state="$(gh release view "$tag" --json isPrerelease,isDraft -q '[.isPrerelease, .isDraft] | @tsv')"
+          prerelease="$(printf '%s' "$state" | cut -f1)"
+          draft="$(printf '%s' "$state" | cut -f2)"
+          echo "tag=$tag prerelease=$prerelease draft=$draft"
+
+          if [ "$draft" = "true" ]; then
+            echo "::notice::$tag is a draft and has no downloadable assets; nothing to sync"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$prerelease" = "true" ] && [ "$ALLOW_PRERELEASE" != "true" ]; then
+            echo "::notice::$tag is a prerelease; leaving the stable package definitions untouched"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
           echo "proceed=true" >> "$GITHUB_OUTPUT"
           echo "Syncing package definitions to $tag"
 
       # Package definitions live on main, not on the tag, so check out main
-      # explicitly. On a release event the default ref would be the tag, which
-      # still carries the previous version's manifests.
+      # explicitly. On a release or tag-driven run the default ref would be the
+      # tag, which still carries the previous version's manifests.
       - uses: actions/checkout@v4
         if: steps.target.outputs.proceed == 'true'
         with:
@@ -125,7 +163,7 @@ jobs:
         if: steps.target.outputs.proceed == 'true'
         run: |
           set -euo pipefail
-          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+          if [ -z "$(git status --porcelain)" ]; then
             echo "::notice::package definitions are already current; nothing to do"
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
