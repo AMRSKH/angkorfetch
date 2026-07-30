@@ -4,3 +4,4 @@
 *.d
 /target
 homebrew-tap/
+.kiro/

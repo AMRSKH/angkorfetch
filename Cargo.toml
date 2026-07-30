@@ -16,3 +16,4 @@ strip = true
 [dependencies]
 sysinfo = "0.39"
 colored = "3"
+terminal_size = "0.4.4"

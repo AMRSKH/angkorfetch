@@ -6,6 +6,7 @@ use std::time::Duration;
 use sysinfo::{
     CpuRefreshKind, Disks, MemoryRefreshKind, Networks, RefreshKind, System,
 };
+use terminal_size::{terminal_size, Width};
 
 #[cfg(windows)]
 #[link(name = "user32")]
@@ -776,24 +777,131 @@ fn get_ip() -> String {
     "Disconnected".to_string()
 }
 
-/// A warm stone-to-gold gradient evoking Angkor Wat's sandstone towers at
-/// sunrise, with small platform-flavored variants so the banner still feels
-/// native on each OS.
+// ── Logo art ────────────────────────────────────────────────────────────────
+//
+// The wordmark is stored as one glyph cell per letter rather than as six
+// pre-joined strings. Every row of a cell is the same width, so composing the
+// wordmark can never produce a ragged edge or a drifting gutter -- the class of
+// alignment bug that hand-typed block art is prone to is structurally
+// impossible here.
+
+/// Left margin for the art, matching the single leading space on the info rows.
+const LOGO_PAD: &str = " ";
+/// Blank columns inserted between adjacent letters.
+const LOGO_GUTTER: &str = " ";
+
+/// "ANGKOR" in the ANSI Shadow style, 6 rows tall.
+const LOGO_FULL: [[&str; 6]; 6] = [
+    // A (8 cols)
+    [
+        " █████╗ ",
+        "██╔══██╗",
+        "███████║",
+        "██╔══██║",
+        "██║  ██║",
+        "╚═╝  ╚═╝",
+    ],
+    // N (10 cols)
+    [
+        "███╗   ██╗",
+        "████╗  ██║",
+        "██╔██╗ ██║",
+        "██║╚██╗██║",
+        "██║ ╚████║",
+        "╚═╝  ╚═══╝",
+    ],
+    // G (9 cols)
+    [
+        " ██████╗ ",
+        "██╔════╝ ",
+        "██║  ███╗",
+        "██║   ██║",
+        "╚██████╔╝",
+        " ╚═════╝ ",
+    ],
+    // K (8 cols)
+    [
+        "██╗  ██╗",
+        "██║ ██╔╝",
+        "█████╔╝ ",
+        "██╔═██╗ ",
+        "██║  ██╗",
+        "╚═╝  ╚═╝",
+    ],
+    // O (9 cols)
+    [
+        " ██████╗ ",
+        "██╔═══██╗",
+        "██║   ██║",
+        "██║   ██║",
+        "╚██████╔╝",
+        " ╚═════╝ ",
+    ],
+    // R (8 cols)
+    [
+        "██████╗ ",
+        "██╔══██╗",
+        "██████╔╝",
+        "██╔══██╗",
+        "██║  ██║",
+        "╚═╝  ╚═╝",
+    ],
+];
+
+/// "ANGKOR" at 3 rows tall, for terminals too narrow for the full art.
+const LOGO_COMPACT: [[&str; 3]; 6] = [
+    ["╔═╗", "╠═╣", "╩ ╩"], // A
+    ["╔╗╔", "║║║", "╝╚╝"], // N
+    ["╔═╗", "║ ╦", "╚═╝"], // G
+    ["╦╔═", "╠╩╗", "╩ ╩"], // K
+    ["╔═╗", "║ ║", "╚═╝"], // O
+    ["╦═╗", "╠╦╝", "╩╚═"], // R
+];
+
+/// Joins one row across every letter cell into a single display line.
+fn compose_logo_row<const N: usize>(letters: &[[&str; N]; 6], row: usize) -> String {
+    let cells: Vec<&str> = letters.iter().map(|l| l[row]).collect();
+    format!("{}{}", LOGO_PAD, cells.join(LOGO_GUTTER))
+}
+
+/// Total columns the art occupies, including the left margin.
+fn logo_width<const N: usize>(letters: &[[&str; N]; 6]) -> usize {
+    LOGO_PAD.chars().count()
+        + letters.iter().map(|l| l[0].chars().count()).sum::<usize>()
+        + LOGO_GUTTER.chars().count() * (letters.len() - 1)
+}
+
+// ── Color ───────────────────────────────────────────────────────────────────
+
+/// Endpoints of the vertical gradient, top row to bottom row. Each platform
+/// keeps its own hue family so the banner still feels native, but the ramp is
+/// always light-to-deep so the block letters read as lit from above.
+fn gradient_anchors() -> ((u8, u8, u8), (u8, u8, u8)) {
+    if cfg!(target_os = "windows") {
+        ((0x8B, 0xF7, 0xC5), (0x06, 0x84, 0xA5))
+    } else if cfg!(target_os = "macos") {
+        ((0xF4, 0xF6, 0xF8), (0x1C, 0xA9, 0xC9))
+    } else {
+        ((0xFF, 0xE0, 0x66), (0xD1, 0x2A, 0x5E))
+    }
+}
+
+/// 16-color approximation of the same ramp, used when 24-bit color is unavailable.
 fn logo_gradient() -> [Color; 6] {
     if cfg!(target_os = "windows") {
         [
-            Color::BrightGreen, Color::Green, Color::BrightCyan,
-            Color::Cyan, Color::BrightGreen, Color::Green,
+            Color::BrightGreen, Color::BrightGreen, Color::BrightCyan,
+            Color::BrightCyan, Color::Cyan, Color::Cyan,
         ]
     } else if cfg!(target_os = "macos") {
         [
-            Color::BrightWhite, Color::White, Color::BrightCyan,
-            Color::Cyan, Color::BrightWhite, Color::White,
+            Color::BrightWhite, Color::BrightWhite, Color::White,
+            Color::BrightCyan, Color::Cyan, Color::Cyan,
         ]
     } else {
         [
-            Color::BrightYellow, Color::Yellow, Color::BrightRed,
-            Color::Red, Color::BrightMagenta, Color::Magenta,
+            Color::BrightYellow, Color::BrightYellow, Color::Yellow,
+            Color::BrightRed, Color::Red, Color::Magenta,
         ]
     }
 }
@@ -802,45 +910,163 @@ fn accent_color() -> Color {
     logo_gradient()[0]
 }
 
-/// Prints a box drawn to fit `lines` exactly, so it never misaligns
-/// no matter how long the version string or text gets.
+/// Conservative 24-bit color detection: only terminals known to support
+/// truecolor opt in, everything else falls back to the 16-color ramp.
+fn supports_truecolor() -> bool {
+    let colorterm = env::var("COLORTERM").unwrap_or_default().to_ascii_lowercase();
+    if colorterm.contains("truecolor") || colorterm.contains("24bit") {
+        return true;
+    }
+    // Windows Terminal does not set COLORTERM but is 24-bit capable.
+    if env::var_os("WT_SESSION").is_some() {
+        return true;
+    }
+    let term_program = env::var("TERM_PROGRAM").unwrap_or_default();
+    if matches!(
+        term_program.as_str(),
+        "vscode" | "iTerm.app" | "WezTerm" | "Hyper" | "ghostty" | "Tabby"
+    ) {
+        return true;
+    }
+    let term = env::var("TERM").unwrap_or_default();
+    term.contains("kitty") || term.contains("direct")
+}
+
+/// Color for row `row` of `rows`, interpolated along the gradient.
+fn logo_row_color(row: usize, rows: usize, truecolor: bool) -> Color {
+    let span = rows.saturating_sub(1);
+    if truecolor {
+        let (from, to) = gradient_anchors();
+        let t = if span == 0 { 0.0 } else { row as f32 / span as f32 };
+        let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+        Color::TrueColor {
+            r: mix(from.0, to.0),
+            g: mix(from.1, to.1),
+            b: mix(from.2, to.2),
+        }
+    } else {
+        let palette = logo_gradient();
+        // Spread `rows` rows across the palette instead of indexing by row, so
+        // the 3-row art still walks the whole ramp.
+        let idx = (row * (palette.len() - 1)).checked_div(span).unwrap_or(0);
+        palette[idx]
+    }
+}
+
+// ── Layout ──────────────────────────────────────────────────────────────────
+
+/// Usable terminal columns. Falls back to 80 when output is piped or the size
+/// cannot be determined.
+fn term_width() -> usize {
+    terminal_size()
+        .map(|(Width(w), _)| w as usize)
+        .filter(|w| *w > 0)
+        .unwrap_or(80)
+}
+
+/// Greedy word wrap to `width` columns.
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current.push_str(word);
+        } else if current.chars().count() + 1 + word.chars().count() <= width {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current.push_str(word);
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+/// Tagline as one line when it fits, otherwise split into its logical parts
+/// and wrapped.
+fn tagline_lines(inner: usize) -> Vec<String> {
+    let version = format!("AngkorFetch v{}", env!("CARGO_PKG_VERSION"));
+    let single = format!(
+        "{}  •  Fast Cross-Platform System Fetch  •  by AMSDev",
+        version
+    );
+    if single.chars().count() <= inner {
+        return vec![single];
+    }
+    ["Fast Cross-Platform System Fetch", "by AMSDev"]
+        .iter()
+        .fold(wrap_text(&version, inner), |mut acc, part| {
+            acc.extend(wrap_text(part, inner));
+            acc
+        })
+}
+
+/// Prints a box sized to fit `lines` exactly, so it never misaligns no matter
+/// how long the version string or text gets.
 fn print_boxed(lines: &[String], color: Color) {
     let width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
-    let top = format!("╔{}╗", "═".repeat(width + 2));
-    let bottom = format!("╚{}╝", "═".repeat(width + 2));
-    println!("{}", top.color(color));
+    let rule = "═".repeat(width + 2);
+    println!("{}", format!("╔{}╗", rule).color(color));
     for line in lines {
         let pad = width - line.chars().count();
         println!("{}", format!("║ {}{} ║", line, " ".repeat(pad)).color(color));
     }
-    println!("{}", bottom.color(color));
+    println!("{}", format!("╚{}╝", rule).color(color));
+}
+
+/// How much of the wordmark fits in `width` columns.
+#[derive(Debug, PartialEq, Eq)]
+enum LogoTier {
+    Full,
+    Compact,
+    None,
+}
+
+fn logo_tier(width: usize) -> LogoTier {
+    if width >= logo_width(&LOGO_FULL) {
+        LogoTier::Full
+    } else if width >= logo_width(&LOGO_COMPACT) {
+        LogoTier::Compact
+    } else {
+        LogoTier::None
+    }
 }
 
 fn print_logo_banner() {
-    let gradient = logo_gradient();
-    // Each row spells one letter of ANGKOR; a gentle top-to-bottom gradient
-    // gives the block letters more depth than a single flat color.
-    let logo_lines = [
-        "  █████╗  ███╗   ██╗  ██████╗  ██╗  ██╗  ██████╗  ██████╗ ",
-        " ██╔══██╗ ████╗  ██║ ██╔════╝ ██║ ██╔╝ ██╔══██╗ ██╔══██╗",
-        " ███████║ ██╔██╗ ██║ ██║  ███╗ █████╔╝  ██║  ██║ ██████╔╝",
-        " ██╔══██║ ██║╚██╗██║ ██║   ██║ ██╔═██╗  ██║  ██║ ██╔══██╗",
-        " ██║  ██║ ██║ ╚████║ ╚██████╔╝ ██║  ██╗ ╚██████╔╝ ██║  ██║",
-        " ╚═╝  ╚═╝ ╚═╝  ╚═══╝  ╚═════╝  ╚═╝  ╚═╝  ╚═════╝  ╚═╝  ╚═╝",
-    ];
+    let width = term_width();
+    let truecolor = supports_truecolor();
 
     println!();
-    for (i, line) in logo_lines.iter().enumerate() {
-        println!("{}", line.color(gradient[i % gradient.len()]));
+    match logo_tier(width) {
+        LogoTier::Full => {
+            for row in 0..6 {
+                let line = compose_logo_row(&LOGO_FULL, row);
+                println!("{}", line.color(logo_row_color(row, 6, truecolor)));
+            }
+            println!();
+        }
+        LogoTier::Compact => {
+            for row in 0..3 {
+                let line = compose_logo_row(&LOGO_COMPACT, row);
+                println!("{}", line.color(logo_row_color(row, 3, truecolor)));
+            }
+            println!();
+        }
+        LogoTier::None => {}
     }
-    println!();
 
     let color = accent_color();
-    let banner = format!(
-        "AngkorFetch v{}  •  Fast Cross-Platform System Fetch  •  by AMSDev",
-        env!("CARGO_PKG_VERSION")
-    );
-    print_boxed(&[banner], color);
+    // Box chrome costs 4 columns: "║ " + content + " ║".
+    let inner = width.saturating_sub(4);
+    if inner >= 16 {
+        print_boxed(&tagline_lines(inner), color);
+    } else {
+        let version = format!("AngkorFetch v{}", env!("CARGO_PKG_VERSION"));
+        println!("{}", version.color(color).bold());
+    }
 }
 
 fn print_hardware_info(sys: &System) {
@@ -962,4 +1188,126 @@ fn main() {
         println!(" {} {} {} {}", dot, padded.cyan().bold(), sep, value.white());
     }
     println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_rectangular<const N: usize>(letters: &[[&str; N]; 6], label: &str) {
+        for (i, cell) in letters.iter().enumerate() {
+            let expected = cell[0].chars().count();
+            for (row, line) in cell.iter().enumerate() {
+                assert_eq!(
+                    line.chars().count(),
+                    expected,
+                    "{label} letter {i} row {row} ({line:?}) is not {expected} cols wide"
+                );
+            }
+        }
+    }
+
+    /// Every row of a letter cell must be the same width, otherwise the gutter
+    /// between letters drifts and the wordmark shears.
+    #[test]
+    fn glyph_cells_are_rectangular() {
+        assert_rectangular(&LOGO_FULL, "full");
+        assert_rectangular(&LOGO_COMPACT, "compact");
+    }
+
+    #[test]
+    fn composed_rows_all_share_one_width() {
+        let expected = logo_width(&LOGO_FULL);
+        for row in 0..6 {
+            assert_eq!(
+                compose_logo_row(&LOGO_FULL, row).chars().count(),
+                expected,
+                "full row {row}"
+            );
+        }
+
+        let expected = logo_width(&LOGO_COMPACT);
+        for row in 0..3 {
+            assert_eq!(
+                compose_logo_row(&LOGO_COMPACT, row).chars().count(),
+                expected,
+                "compact row {row}"
+            );
+        }
+    }
+
+    #[test]
+    fn tiers_step_down_with_available_width() {
+        let full = logo_width(&LOGO_FULL);
+        let compact = logo_width(&LOGO_COMPACT);
+        assert!(compact < full);
+
+        assert_eq!(logo_tier(full + 40), LogoTier::Full);
+        assert_eq!(logo_tier(full), LogoTier::Full);
+        assert_eq!(logo_tier(full - 1), LogoTier::Compact);
+        assert_eq!(logo_tier(compact), LogoTier::Compact);
+        assert_eq!(logo_tier(compact - 1), LogoTier::None);
+        assert_eq!(logo_tier(0), LogoTier::None);
+    }
+
+    #[test]
+    fn tagline_stays_inside_the_box() {
+        for inner in 16..=120 {
+            let lines = tagline_lines(inner);
+            assert!(!lines.is_empty(), "inner={inner} produced no lines");
+            for line in lines {
+                assert!(
+                    line.chars().count() <= inner,
+                    "inner={inner} overflowed with {line:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn tagline_is_a_single_line_when_it_fits() {
+        let one_line = tagline_lines(120);
+        assert_eq!(one_line.len(), 1);
+        assert!(one_line[0].contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn wrap_text_respects_width() {
+        assert_eq!(wrap_text("a bb ccc", 6), vec!["a bb", "ccc"]);
+        assert_eq!(wrap_text("one", 10), vec!["one"]);
+        assert!(wrap_text("   ", 10).is_empty());
+    }
+
+    /// The gradient must terminate exactly on both anchors so the ramp reads as
+    /// a deliberate light-to-deep fade rather than an arbitrary slice of it.
+    #[test]
+    fn truecolor_gradient_spans_both_anchors() {
+        let (from, to) = gradient_anchors();
+        let expect = |c: (u8, u8, u8)| Color::TrueColor { r: c.0, g: c.1, b: c.2 };
+        assert_eq!(logo_row_color(0, 6, true), expect(from));
+        assert_eq!(logo_row_color(5, 6, true), expect(to));
+        assert_eq!(logo_row_color(0, 3, true), expect(from));
+        assert_eq!(logo_row_color(2, 3, true), expect(to));
+    }
+
+    #[test]
+    fn fallback_gradient_spans_the_palette() {
+        let palette = logo_gradient();
+        let last = palette.len() - 1;
+        assert_eq!(logo_row_color(0, 6, false), palette[0]);
+        assert_eq!(logo_row_color(5, 6, false), palette[last]);
+        assert_eq!(logo_row_color(0, 3, false), palette[0]);
+        assert_eq!(logo_row_color(2, 3, false), palette[last]);
+    }
+
+    /// A single row must not divide by zero or index out of bounds.
+    #[test]
+    fn single_row_gradient_is_safe() {
+        let (from, _) = gradient_anchors();
+        assert_eq!(
+            logo_row_color(0, 1, true),
+            Color::TrueColor { r: from.0, g: from.1, b: from.2 }
+        );
+        assert_eq!(logo_row_color(0, 1, false), logo_gradient()[0]);
+    }
 }
