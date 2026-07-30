@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 SPEC="angkorfetch.spec"
 RPMBUILD_DIR="$HOME/rpmbuild"
 
