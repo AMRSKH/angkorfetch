@@ -228,3 +228,8 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          # A hyphen in the tag marks a prerelease (v1.2.0-rc.1, v1.2.0-test).
+          # The action defaults to prerelease: false, which would otherwise mark
+          # any release candidate as "Latest" and expose it to installers and to
+          # the package sync automation.
+          prerelease: ${{ contains(github.ref_name, '-') }}
