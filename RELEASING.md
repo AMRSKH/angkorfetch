@@ -22,6 +22,36 @@ the version bump and the two pull request merges.
                           rewrites Homebrew + winget, opens a pull request
 ```
 
+## Branches
+
+| Branch | Role |
+|---|---|
+| `main` | Production. Default branch, the only branch releases are tagged from, and the ref everything external reads. |
+| `dev` | Integration. New features and experiments land here first. `release.yml` tests and builds pushes to it, but no job publishes from it. |
+| `feat/…`, `fix/…`, `docs/…` | Short-lived topic branches. Merged by pull request, then deleted. |
+| `automation/sync-packages-vX.Y.Z` | Opened by `sync-packages.yml` after a release. Merged, then deleted. |
+
+Keep `dev` fast-forwarded to `main` after every merge, so it never carries a
+stale base:
+
+```bash
+git switch dev && git merge --ff-only main && git push origin dev
+```
+
+`main` is production; do not add a `prod` branch or rename `main`. Three things
+read that name and would break:
+
+- `get.ps1` and `get.sh` are fetched from
+  `raw.githubusercontent.com/AMRSKH/angkorfetch/main/…`. Those one-liners are
+  published in the README and already in use, so they cannot be moved.
+- `sync-packages.yml` checks out `ref: main` and opens its pull request with
+  `--base main`.
+- `release.yml` triggers on `push: [main, dev]` and `pull_request: [main]`.
+
+Retired development lines are kept as `archive/*` tags rather than as branches,
+so their commits stay reachable without cluttering the branch list. `archive/v0.2`
+is the tip of the abandoned v0.2 line.
+
 ## Cutting a release
 
 1. **Bump the version** in a pull request into `main`:

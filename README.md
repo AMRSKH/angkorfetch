@@ -1,197 +1,176 @@
 # AngkorFetch
 
-**ឧបករណ៍បង្ហាញព័ត៌មានប្រព័ន្ធ** ដែលរត់លឿន សរសេរដោយ Rust សម្រាប់ Windows, Linux និង macOS ។
-
-A fast, cross-platform system-info ("fetch") tool written in Rust.
-
 [![crates.io](https://img.shields.io/crates/v/angkorfetch.svg)](https://crates.io/crates/angkorfetch)
 [![build](https://github.com/AMRSKH/angkorfetch/actions/workflows/release.yml/badge.svg)](https://github.com/AMRSKH/angkorfetch/actions/workflows/release.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
----
+**A fast, cross-platform system-info ("fetch") tool** written in Rust for Windows,
+Linux and macOS.
 
-## អំពីគម្រោង / About
+## About
 
-AngkorFetch គឺជា command ១ បន្ទាត់ដែលឆ្លើយសំណួរថា **"កុំព្យូទ័រនេះជាអ្វី?"** ។
-វាបង្ហាញ OS, CPU, GPU, RAM, Disk, Display, Battery, WiFi និង Packages ក្នុងរូបភាព
-ស្អាតតែមួយអេក្រង់ ហើយ `--hinfo` បន្ថែមព័ត៌មានផ្នែករឹងលម្អិត ដូចជា Motherboard,
-BIOS, Serial, ប្រភេទ RAM និងប្រភេទ Disk ។
+AngkorFetch is one command that answers a single question: **"what is this
+machine?"** One run prints OS, CPU, GPU, RAM, disk, display, battery, WiFi and
+package counts on a single screen. Adding `--hinfo` prints detailed hardware on
+top of that: motherboard, BIOS, serial number, RAM type and speed, disk model
+and type.
 
-គោលការណ៍រចនា ៤ ចំណុច៖
+Four design rules:
 
-1. **Binary តែមួយ គ្មាន runtime** — គ្មាន Python, គ្មាន Node, គ្មាន shell framework ។
-   Dependency មានតែ ៣ crate (`sysinfo`, `colored`, `terminal_size`) ។
-2. **អានពីប្រភពដើមរបស់ OS** — Windows អានពី Registry និង CIM/WMI, Linux អានពី
-   `/sys` និង DMI, macOS អានពី `sysctl` និង `system_profiler` ។ គ្មានការទាយ។
-3. **ធ្លាក់ចុះដោយសុភាព (graceful degradation)** — បើ field ណាមួយអានមិនបាន វាបង្ហាញ
-   `Unknown` ឬ `N/A` ជំនួស ដោយមិន panic និងមិនបាត់ field ដទៃ។
-4. **សម្រួលតាមទំហំ terminal** — logo មាន ៣ ទ្រង់ (ពេញ / តូច / គ្មាន) និង gradient
-   ២ បែប (24-bit ឬ 16 color) ជ្រើសតាមលទ្ធភាព terminal ។
+1. **One binary, no runtime.** No Python, no Node, no shell framework. Three
+   crates only: `sysinfo`, `colored`, `terminal_size`.
 
-AngkorFetch is one command that answers **"what is this machine?"** in a single
-screen. It reads OS-native sources rather than guessing: the registry and CIM on
-Windows, `/sys` plus DMI on Linux, `sysctl` and `system_profiler` on macOS. Every
-field degrades to `Unknown`/`N/A` on its own instead of failing the whole run,
-and the banner adapts to the terminal width and color depth. One static binary,
-three crates, no runtime dependencies.
+2. **Read what the OS actually reports.** The registry and CIM/WMI on Windows,
+   `/sys` plus DMI on Linux, `sysctl` and `system_profiler` on macOS. Nothing is
+   guessed.
 
----
+3. **Fail gracefully.** A field that cannot be read prints `Unknown` or `N/A` by
+   itself; the process does not panic and no other field is lost.
 
-## ដំឡើង / Install
+4. **Adapt to the terminal.** Three logo tiers (full, compact, none) and two
+   gradients (24-bit or 16 colour), chosen from what the terminal supports.
 
-**macOS និង Linux (Homebrew)**
+## Install
+
+macOS and Linux, via Homebrew:
+
 ```bash
 brew install AMRSKH/tap/angkorfetch
 ```
 
-**Windows**
+Windows:
+
 ```powershell
 irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
 ```
-ដំឡើងទៅ `%LOCALAPPDATA%\AngkorFetch\bin` ហើយបន្ថែមទៅ PATH ដោយស្វ័យប្រវត្តិ។
 
-**Linux / macOS (script)**
+Installs to `%LOCALAPPDATA%\AngkorFetch\bin` and adds it to PATH automatically.
+
+Linux and macOS, via script:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
 ```
-ដំឡើងទៅ `~/.local/bin/angkorfetch` ។
 
-**គ្រប់ប្រព័ន្ធ / Any OS (Rust)**
+Installs to `~/.local/bin/angkorfetch`.
+
+Any OS, via Rust:
+
 ```bash
 cargo install angkorfetch
 ```
 
----
+## Package status
 
-## ស្ថានភាពកញ្ចប់ / Package status
-
-កំណែបច្ចុប្បន្ន **v1.1.1** ។ តារាងនេះបង្ហាញថាឆានែលណាដំណើរការហើយ ឆានែលណាមិនទាន់។
 Current version is **v1.1.1**. What is actually shipping, and what is not:
 
-| ឆានែល / Channel | កំណែ / Version | ស្ថានភាព / Status | កំណត់ចំណាំ / Notes |
+| Channel | Version | Status | Notes |
 |---|---|---|---|
-| [crates.io](https://crates.io/crates/angkorfetch) | 1.1.1 | ប្រើបាន / Live | `cargo install angkorfetch` — គ្រប់ target ដែល Rust support |
-| GitHub Releases | v1.1.1 | ប្រើបាន / Live | 5 archives + `.deb` + `.rpm` + `checksums.txt` |
-| Homebrew tap `AMRSKH/tap` | 1.1.1 | ប្រើបាន / Live | macOS និង Linux, x86_64 + aarch64 |
-| `get.ps1` (Windows) | v1.1.1 | ប្រើបាន / Live | ទាញ asset ពី release ចុងក្រោយ |
-| `get.sh` (Linux/macOS) | v1.1.1 | ប្រើបាន / Live | ទាញ asset ពី release ចុងក្រោយ |
-| `.deb` | 1.1.1 | ទាញដោយដៃ / Download only | `amd64` តែមួយ, គ្មាន apt repository |
-| `.rpm` | 1.1.1 | ទាញដោយដៃ / Download only | `x86_64` តែមួយ, គ្មាន dnf/yum repository |
-| winget `AMRSKH.AngkorFetch` | 1.1.1 | រង់ចាំ / Pending | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) នៅបើកចំហ។ `winget install` **មិនទាន់ដំណើរការ** ទេ រហូតដល់ merge |
-| Snap | — | មិន publish / Not published | `snap/snapcraft.yaml` មានក្នុង repo តែ CI មិន build |
-| Flatpak | — | មិន publish / Not published | `flatpak/io.github.AMRSKH.angkorfetch.yml` មានក្នុង repo តែ CI មិន build |
-| Homebrew core, AUR, nixpkgs, Debian, Fedora, Scoop, Chocolatey | — | មិនទាន់ដាក់ / Not submitted | គ្មានផែនការជាក់លាក់នៅឡើយ |
+| [crates.io](https://crates.io/crates/angkorfetch) | 1.1.1 | Live | `cargo install angkorfetch` — every target Rust supports |
+| GitHub Releases | v1.1.1 | Live | 5 archives plus `.deb`, `.rpm` and `checksums.txt` |
+| Homebrew tap `AMRSKH/tap` | 1.1.1 | Live | macOS and Linux, x86_64 and aarch64 |
+| `get.ps1` for Windows | v1.1.1 | Live | Pulls the asset from the latest release |
+| `get.sh` for Linux and macOS | v1.1.1 | Live | Pulls the asset from the latest release |
+| `.deb` | 1.1.1 | Download only | `amd64` only, no apt repository |
+| `.rpm` | 1.1.1 | Download only | `x86_64` only, no dnf or yum repository |
+| winget `AMRSKH.AngkorFetch` | 1.1.1 | Pending | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) is still open. `winget install` **does not work yet**, not until it merges |
+| Snap | — | Not published | `snap/snapcraft.yaml` is in the repo but CI never builds it |
+| Flatpak | — | Not published | `flatpak/io.github.AMRSKH.angkorfetch.yml` is in the repo but CI never builds it |
+| Homebrew core, AUR, nixpkgs, Debian, Fedora, Scoop, Chocolatey | — | Not submitted | No concrete plans yet |
 
-`.deb` និង `.rpm` ដំឡើងដោយ៖
-```bash
-sudo dpkg -i angkorfetch_1.1.1_amd64.deb     # Debian / Ubuntu
-sudo rpm -i angkorfetch-1.1.1-1.x86_64.rpm   # Fedora / RHEL / openSUSE
-```
-
-Homebrew formula និង winget manifest ត្រូវ update ដោយស្វ័យប្រវត្តិក្រោយ release
-ដោយ workflow `sync-packages`, ព្រោះវា pin `sha256` របស់ artifact ដែលមិនអាចដឹងមុន
-ពេលបង្កើត tag ។ សូមអាន `RELEASING.md` ។
-
----
-
-## ប្រព័ន្ធដែលគាំទ្រ / Supported platforms
-
-មាន binary ស្រេច (prebuilt) សម្រាប់តែ ៥ target ខាងក្រោម។
-Prebuilt binaries are published for these five targets only:
-
-| OS | Arch | Prebuilt | ដំឡើងតាម / Install via |
-|---|---|---|---|
-| Windows 10 / 11 | x86_64 | Yes | `get.ps1`, `cargo install` (winget នៅរង់ចាំ) |
-| Linux (glibc) | x86_64 | Yes | `get.sh`, Homebrew, `.deb`, `.rpm`, `cargo install` |
-| Linux (glibc) | aarch64 | Yes | `get.sh`, Homebrew, `cargo install` |
-| macOS (Intel) | x86_64 | Yes | Homebrew, `get.sh`, `cargo install` |
-| macOS (Apple Silicon) | aarch64 | Yes | Homebrew, `get.sh`, `cargo install` |
-
-គ្រប់ target ផ្សេងទៀតត្រូវ build ដោយ `cargo install angkorfetch` ។
-Every other target must be built from source with `cargo install angkorfetch`.
-
----
-
-## មិនទាន់គាំទ្រ / Not yet supported
-
-### ១. OS ដែលមិនមាន code path / Operating systems with no code path
-
-កូដមានតែ ៣ សាខា៖ `windows`, `linux`, `macos` (`src/main.rs`) ។ OS ផ្សេងទៀតធ្លាក់ចូល
-fallback branch ដូច្នេះ field ផ្នែករឹងភាគច្រើនចេញ `Unknown` / `None` ។
-
-The source only branches on `windows`, `linux`, and `macos` (`src/main.rs`). Any other
-OS falls through to the fallback branches, so most hardware fields report
-`Unknown` / `None`:
-
-| OS | ស្ថានភាព / Status |
-|---|---|
-| FreeBSD / OpenBSD / NetBSD / DragonFly | មិនគាំទ្រ — គ្មាន binary, គ្មាន code path. `get.sh` បដិសេធ `uname -s` ក្រៅពី `Linux`/`Darwin` |
-| Android / Termux | មិនគាំទ្រ — `target_os = "android"` មិនមែន `"linux"` ដូច្នេះ DMI/GPU/battery/packages ធ្លាក់ចេញ។ មិនបានសាកល្បង |
-| Solaris / illumos | មិនគាំទ្រ — មិនបានសាកល្បង, គ្មាន code path |
-| Haiku / Redox / ផ្សេងៗ | មិនគាំទ្រ — មិនបានសាកល្បង, គ្មានក្នុង CI |
-| iOS / iPadOS | មិនអនុវត្ត / Not applicable — គ្មាន CLI target |
-
-នៅ OS ទាំងនេះ មានតែ field មូលដ្ឋានពី `sysinfo` ដែលអាចដំណើរការ៖ OS, Host, Uptime,
-CPU, Memory, Disk total, Local IP ។
-On those systems only the `sysinfo`-backed basics can work.
-
-### ២. Arch / distro ដែលមិនមាន binary ស្រេច / No prebuilt binary
-
-| Target | ស្ថានភាព / Status |
-|---|---|
-| Windows on ARM (aarch64) | គ្មាន native build — `get.ps1` ផ្ដល់ x64 ដែល Windows រត់ក្រោម emulation. បើចង់បាន native សូមប្រើ `cargo install angkorfetch` |
-| Linux armv7 / riscv64 / i686 | Source only |
-| Alpine / musl Linux | Source only — binary ដែល release គឺ `*-linux-gnu` រត់មិនបានបើគ្មាន glibc |
-| Windows 7 / 8 / 8.1 | មិនបានសាកល្បង, គ្មានក្នុង CI |
-
----
-
-## ប្រើប្រាស់ / Usage
+Installing the `.deb` and `.rpm`:
 
 ```bash
-angkorfetch              # បង្ហាញព័ត៌មានប្រព័ន្ធ
-angkorfetch -v           # បង្ហាញកំណែ
-angkorfetch --hinfo      # ព័ត៌មានលម្អិតផ្នែករឹង (--hard ក៏បាន)
-angkorfetch -h           # ជំនួយ
+sudo dpkg -i angkorfetch_1.1.1_amd64.deb     # Debian and Ubuntu
+sudo rpm -i angkorfetch-1.1.1-1.x86_64.rpm   # Fedora, RHEL and openSUSE
 ```
 
----
+The Homebrew formula and the winget manifests are updated automatically after a
+release by the `sync-packages` workflow, because they pin a `sha256` of artifacts
+that do not exist until the tag is built. See `RELEASING.md`.
 
-## ព័ត៌មានបង្ហាញ / What it shows
+## Supported platforms
 
-OS · Host · Model · Uptime · CPU · CPU Usage · GPU · GPU Usage · Memory · Disk ·
-Display · Shell · Terminal · DE · Packages · Battery · Local IP
+Prebuilt binaries are published for these five targets only.
 
-**លម្អិត / Details** (`--hinfo`): Motherboard · BIOS · Serial · RAM type/speed/vendor ·
-Disk Model · Disk Type · Ports · WiFi
+| Operating system | Arch | Prebuilt | Install via |
+|---|---|---|---|
+| Windows 10 and 11 | x86_64 | Yes | `get.ps1`, `cargo install` (winget pending) |
+| Linux with glibc | x86_64 | Yes | `get.sh`, Homebrew, `.deb`, `.rpm`, `cargo install` |
+| Linux with glibc | aarch64 | Yes | `get.sh`, Homebrew, `cargo install` |
+| macOS on Intel | x86_64 | Yes | Homebrew, `get.sh`, `cargo install` |
+| macOS on Apple Silicon | aarch64 | Yes | Homebrew, `get.sh`, `cargo install` |
 
----
+Every other target has to be built from source with `cargo install angkorfetch`.
 
-## តារាងគាំទ្រតាម field / Per-field support
+## Not yet supported
+
+### 1. Operating systems with no code path
+
+The source branches on three systems only: `windows`, `linux` and `macos`
+(`src/main.rs`). Anything else falls through to the fallback branches, so most
+hardware fields report `Unknown` or `None`.
+
+| Operating system | Status |
+|---|---|
+| FreeBSD, OpenBSD, NetBSD, DragonFly | Unsupported — no prebuilt binary, no hardware code path. `get.sh` refuses any `uname -s` other than `Linux` and `Darwin` |
+| Android and Termux | Unsupported — `target_os = "android"` is not `"linux"`, so DMI, GPU, battery and packages fall through. Untested |
+| Solaris and illumos | Unsupported — no code path, untested |
+| Haiku, Redox and others | Unsupported — untested, not covered by CI |
+| iOS and iPadOS | Not applicable — no CLI target |
+
+On those systems only the `sysinfo`-backed basics can work: OS, Host, Uptime,
+CPU, Memory, total disk size and Local IP.
+
+### 2. Architectures and distros with no prebuilt binary
+
+| Target | Status |
+|---|---|
+| Windows on ARM (aarch64) | No native build — `get.ps1` ships x64, which Windows runs under emulation. For a native binary use `cargo install angkorfetch` |
+| Linux armv7, riscv64, i686 | Build from source |
+| Alpine and other musl Linux | Build from source — the released binaries are `*-linux-gnu` and will not run without glibc |
+| Windows 7, 8, 8.1 | Untested, not covered by CI |
+
+## Usage
+
+```bash
+angkorfetch              # show system information
+angkorfetch -v           # show the version
+angkorfetch --hinfo      # detailed hardware information (--hard also works)
+angkorfetch -h           # help
+```
+
+## What it shows
+
+By default: OS, Host, Model, Uptime, CPU, CPU Usage, GPU, GPU Usage, Memory,
+Disk, Display, Shell, Terminal, DE, Packages, Battery and Local IP.
+
+With `--hinfo`: Motherboard, BIOS, Serial, RAM type, speed and vendor, Disk
+Model, Disk Type, Ports and WiFi.
+
+## Per-field support
 
 | Field | Windows | Linux | macOS |
 |---|---|---|---|
 | OS, Host, Uptime, CPU, Memory, Disk, Local IP | Yes | Yes | Yes |
 | Model | Yes | Yes | Yes |
-| GPU | Yes | ត្រូវការ `lspci` | Yes |
-| GPU Usage | NVIDIA តែមួយ | NVIDIA, ឬ AMD តាម `gpu_busy_percent` | No (`N/A`) |
-| Display | Yes | X11 តែមួយ — `xrandr` ។ Wayland គ្មាន XWayland ចេញ `Unknown` | Yes |
+| GPU | Yes | Needs `lspci` | Yes |
+| GPU Usage | NVIDIA only | NVIDIA, or AMD via `gpu_busy_percent` | No, prints `N/A` |
+| Display | Yes | X11 only, via `xrandr`. Wayland without XWayland prints `Unknown` | Yes |
 | Shell, Terminal | Yes | Yes | Yes |
-| DE | ថេរ `Windows Explorer` | `XDG_CURRENT_DESKTOP` | ថេរ `Aqua` |
+| DE | Fixed `Windows Explorer` | From `XDG_CURRENT_DESKTOP` | Fixed `Aqua` |
 | Packages | winget, npm, registry apps | dpkg, rpm, pacman, apk, flatpak, snap, npm | brew, npm |
-| Battery | % + health % | % + health % | % + cycle count |
-| WiFi | SSID + signal % | ត្រូវការ `iwgetid` / `nmcli` | SSID តែមួយ, ហើយពឹងលើ `airport` ដែល Apple ដកចេញនៅ macOS 14.4+ |
-| Motherboard | Yes | Yes | មកពី `hw.model` |
-| BIOS | Yes | Yes | No (`Unknown`) |
-| Serial | Yes | ត្រូវការ root | Yes |
-| RAM type / speed / vendor | Yes | ត្រូវការ root (`dmidecode`) | Yes |
-| Disk Model | Yes | Yes — អានពី `/sys/block/*/device/model` | Yes |
-| Disk Type | Yes | ត្រូវការ `lsblk` | Yes |
-| Ports | USB, Video Out, Audio | USB តាម `lsusb`, Video Out, Audio | USB, Audio — គ្មានចំនួន video-out |
+| Battery | Percent plus health | Percent plus health | Percent plus cycle count |
+| WiFi | SSID plus signal strength | Needs `iwgetid` or `nmcli` | SSID only, and relies on `airport`, which Apple removed in macOS 14.4 |
+| Motherboard | Yes | Yes | Derived from `hw.model` |
+| BIOS | Yes | Yes | No, prints `Unknown` |
+| Serial | Yes | Needs root | Yes |
+| RAM type, speed, vendor | Yes | Needs root, via `dmidecode` | Yes |
+| Disk Model | Yes | Yes, read from `/sys/block/*/device/model` | Yes |
+| Disk Type | Yes | Needs `lsblk` | Yes |
+| Ports | USB, Video Out, Audio | USB via `lsusb`, Video Out, Audio | USB and Audio, no video-out count |
 
----
-
-## ឧទាហរណ៍ / Example output
+## Example output
 
 ```
   █████╗  ███╗   ██╗  ██████╗  ██╗  ██╗  ██████╗  ██████╗ 
@@ -224,7 +203,7 @@ Disk Model · Disk Type · Ports · WiFi
  ● Local IP   ❯ 192.168.0.208 (Wi-Fi)
 ```
 
-**ព័ត៌មានលម្អិត / Hardware info** (`--hinfo`):
+Output of `--hinfo`:
 
 ```
  ● Motherboard  ❯ Dell Inc. 08NJ82
@@ -243,90 +222,83 @@ Disk Model · Disk Type · Ports · WiFi
  ● Battery      ❯ 63% [Discharging]
 ```
 
----
+## How it works
 
-## របៀបដំណើរការ / How it works
-
-| ផ្នែក / Area | Windows | Linux | macOS |
+| Area | Windows | Linux | macOS |
 |---|---|---|---|
-| មូលដ្ឋាន (OS, CPU, RAM, Disk, Net) | `sysinfo` | `sysinfo` | `sysinfo` |
-| ផ្នែករឹង / Hardware | Registry + `Get-CimInstance` | `/sys/class/dmi`, `/sys/block`, `lspci`, `lsusb` | `sysctl`, `system_profiler`, `ioreg` |
-| Display | `GetDeviceCaps` (GDI) | `xrandr` | `system_profiler` |
-| Battery | `GetSystemPowerStatus` | `/sys/class/power_supply` | `pmset`, `ioreg` |
+| Basics: OS, CPU, RAM, disk, network | `sysinfo` | `sysinfo` | `sysinfo` |
+| Hardware | Registry and `Get-CimInstance` | `/sys/class/dmi`, `/sys/block`, `lspci`, `lsusb` | `sysctl`, `system_profiler`, `ioreg` |
+| Display | `GetDeviceCaps` from GDI | `xrandr` | `system_profiler` |
+| Battery | `GetSystemPowerStatus` | `/sys/class/power_supply` | `pmset` and `ioreg` |
 
-CPU Usage គណនាពី sample ២ ដង ដោយមាន delay 200ms នៅចន្លោះ ដូច្នេះ run មួយចំណាយ
-ពេលជាង 0.2 វិនាទីបន្តិច។ លើ Windows field មួយចំនួនហៅ `powershell` ដែលបន្ថែមពេល។
+CPU usage is computed from two samples 200 ms apart, so a run always costs a
+little over 0.2 seconds. On Windows a few fields shell out to `powershell`, which
+adds more.
 
-CPU usage needs two samples 200 ms apart, so a run always costs at least that;
-on Windows a few fields shell out to `powershell`, which adds more.
-
----
-
-## បង្កើតពី source / Build from source
+## Build from source
 
 ```bash
 git clone https://github.com/AMRSKH/angkorfetch.git
 cd angkorfetch
-cargo build --release          # target/release/angkorfetch
-cargo test --locked            # 9 tests (logo layout, gradient, wrapping)
+cargo build --release          # produces target/release/angkorfetch
+cargo test --locked            # 9 tests covering logo layout, gradient, wrapping
 python -m unittest discover -s scripts -p "test_*.py"   # package sync tests
 ```
 
-ត្រូវការ Rust stable (edition 2021) ។ គ្មាន build dependency ផ្សេង។
+Requires Rust stable (edition 2021). No other build dependency.
 
----
+## Notes
 
-## កំណត់ចំណាំ / Notes
-
-លើ Linux រត់ជាមួយ `sudo` ដើម្បីទទួលព័ត៌មានពេញលេញ (Serial, RAM type/speed) ។
-On Linux, run with `sudo` for complete output (Serial, RAM type/speed):
+On Linux, run with `sudo` for complete output, specifically Serial and the RAM
+type and speed:
 
 ```bash
 sudo angkorfetch --hinfo
 ```
 
-- **WSL** ដំណើរការតាម path Linux ។ Field ផ្នែករឹង (BIOS, Serial, Battery, Display)
-  ភាគច្រើនចេញ `Unknown` ។
-- **Wayland** — `Display` ពឹងលើ `xrandr`, ដូច្នេះបើគ្មាន XWayland វានឹងចេញ `Unknown` ។
-- **Snap / Flatpak** — manifest មានក្នុង repo (`snap/`, `flatpak/`) តែ release workflow
-  មិន publish ទេ។ Snap ប្រើ strict confinement ដូច្នេះ field មួយចំនួនអាចត្រូវរារាំង។
-- **GPU** បង្ហាញ adapter ដំបូងតែមួយ, និង **Display** បង្ហាញអេក្រង់ចម្បងតែមួយ។
-- **Local IP** យក IPv4 មិនមែន loopback ដំបូងគេ, មិនបង្ហាញ IPv6 ។
+- **WSL** runs through the Linux path. Bare-metal fields such as BIOS, Serial,
+  battery and display mostly read `Unknown`.
+- **Wayland** — `Display` relies on `xrandr`, so without XWayland it reads
+  `Unknown`.
+- **Snap and Flatpak** — the manifests are in the repo (`snap/` and `flatpak/`)
+  but the release workflow does not publish them. Snap also uses strict
+  confinement, so some fields can be blocked.
+- **GPU** reports the first adapter only, and **Display** the primary screen only.
+- **Local IP** takes the first non-loopback IPv4 address and never shows IPv6.
 
----
-
-## លុប / Uninstall
+## Uninstall
 
 ```bash
-# cargo
+# installed with cargo
 cargo uninstall angkorfetch
 
-# get.sh (Linux/macOS)
+# installed with get.sh on Linux and macOS
 rm ~/.local/bin/angkorfetch
 
-# get.ps1 (Windows)
+# installed with get.ps1 on Windows
 rm $env:LOCALAPPDATA\AngkorFetch\bin\angkorfetch.exe
 
-# Homebrew
+# installed with Homebrew
 brew uninstall angkorfetch
 
-# .deb / .rpm
+# installed from .deb or .rpm
 sudo apt remove angkorfetch
 sudo rpm -e angkorfetch
 ```
 
----
+## Contributing
 
-## ចូលរួម / Contributing
+Branches: `main` is production and the only branch releases are tagged from.
+`dev` is where new features and testing land. Send feature pull requests to
+`dev`, and urgent fixes or documentation to `main`. Details are in
+`RELEASING.md`.
 
-- ចង់បន្ថែម OS ថ្មី? សូមបន្ថែម branch ក្នុង `src/main.rs` រួចបើក PR ។
-  Want another OS? Add a branch in `src/main.rs` and open a PR.
-- ចង់ជួយ publish ទៅ AUR, nixpkgs, Scoop ឬ Chocolatey? សូមបើក issue មុន។
-- `Formula/angkorfetch.rb` ត្រូវបង្កើតដោយ `scripts/sync_package_manifests.py` —
-  សូមកែ template ក្នុង script មិនមែនកែ formula ដោយដៃ, ព្រោះ CI ប្រៀបធៀប byte ។
+- Want another operating system? Add a branch in `src/main.rs` and open a PR.
+- Want to help publish to AUR, nixpkgs, Scoop or Chocolatey? Open an issue first.
+- `Formula/angkorfetch.rb` is generated by `scripts/sync_package_manifests.py`.
+  Edit the template in the script rather than the formula by hand, because CI
+  compares it byte for byte.
 
----
+## License
 
-## អាជ្ញាប័ណ្ឌ / License
-
-MIT — សូមអាន [LICENSE](LICENSE) ។
+MIT. See [LICENSE](LICENSE).
