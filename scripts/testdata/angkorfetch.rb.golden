@@ -1,0 +1,39 @@
+class Angkorfetch < Formula
+  desc "Fast, cross-platform system fetch tool"
+  homepage "https://github.com/AMRSKH/angkorfetch"
+  # No explicit `version` stanza: Homebrew scans it from the vX.Y.Z path segment
+  # of the URLs below, and `brew audit --strict` rejects restating it.
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/AMRSKH/angkorfetch/releases/download/v9.9.9/angkorfetch-macos-aarch64.tar.gz"
+      sha256 "1111111111111111111111111111111111111111111111111111111111111111"
+    end
+
+    on_intel do
+      url "https://github.com/AMRSKH/angkorfetch/releases/download/v9.9.9/angkorfetch-macos-x86_64.tar.gz"
+      sha256 "2222222222222222222222222222222222222222222222222222222222222222"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/AMRSKH/angkorfetch/releases/download/v9.9.9/angkorfetch-linux-aarch64.tar.gz"
+      sha256 "3333333333333333333333333333333333333333333333333333333333333333"
+    end
+
+    on_intel do
+      url "https://github.com/AMRSKH/angkorfetch/releases/download/v9.9.9/angkorfetch-linux-x86_64.tar.gz"
+      sha256 "4444444444444444444444444444444444444444444444444444444444444444"
+    end
+  end
+
+  def install
+    bin.install "angkorfetch"
+  end
+
+  test do
+    assert_match "AngkorFetch", shell_output("#{bin}/angkorfetch --version")
+  end
+end

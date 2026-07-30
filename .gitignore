@@ -5,3 +5,6 @@
 /target
 homebrew-tap/
 .kiro/
+__pycache__/
+*.pyc
+
