@@ -11,3 +11,4 @@
 # Generated and byte-compared.
 *.rb        text eol=lf
 *.golden    text eol=lf
+*.sh        text eol=lf

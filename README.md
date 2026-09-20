@@ -32,29 +32,77 @@ Four design rules:
 
 ## Install
 
-macOS and Linux, via Homebrew:
+### Windows
 
-```bash
-brew install AMRSKH/tap/angkorfetch
+Using Windows Package Manager (**winget**):
+
+```powershell
+winget install angkorfetch
+# Or via full ID:
+winget install AMRSKH.AngkorFetch
 ```
 
-Windows:
+Or via PowerShell one-liner:
 
 ```powershell
 irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
 ```
 
-Installs to `%LOCALAPPDATA%\AngkorFetch\bin` and adds it to PATH automatically.
+### macOS
 
-Linux and macOS, via script:
+Using **Homebrew**:
+
+```bash
+brew install angkorfetch
+# If the tap is not yet added:
+brew install AMRSKH/tap/angkorfetch
+```
+
+Or via shell script:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
 ```
 
-Installs to `~/.local/bin/angkorfetch`.
+### Linux
 
-Any OS, via Rust:
+#### Debian, Ubuntu, Linux Mint, MX Linux (APT)
+
+Install directly using `apt`:
+
+```bash
+# Download and install the latest .deb package:
+curl -LO https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch_1.1.1_amd64.deb
+sudo apt install ./angkorfetch_1.1.1_amd64.deb
+```
+
+*(Once added to your system's package repository, simply run `sudo apt install angkorfetch`).*
+
+#### Fedora (DNF / RPM)
+
+Install directly using `dnf`:
+
+```bash
+sudo dnf install https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch-1.1.1-1.x86_64.rpm
+```
+
+#### Arch Linux (Pacman / AUR)
+
+```bash
+yay -S angkorfetch
+# or using paru:
+paru -S angkorfetch
+```
+
+#### Universal Linux Script
+
+Works on any Linux distribution (installs to `~/.local/bin/angkorfetch`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+```
+
+### Any OS (via Cargo)
 
 ```bash
 cargo install angkorfetch
@@ -68,22 +116,14 @@ Current version is **v1.1.1**. What is actually shipping, and what is not:
 |---|---|---|---|
 | [crates.io](https://crates.io/crates/angkorfetch) | 1.1.1 | Live | `cargo install angkorfetch` — every target Rust supports |
 | GitHub Releases | v1.1.1 | Live | 5 archives plus `.deb`, `.rpm` and `checksums.txt` |
-| Homebrew tap `AMRSKH/tap` | 1.1.1 | Live | macOS and Linux, x86_64 and aarch64 |
+| Homebrew tap `AMRSKH/tap` | 1.1.1 | Live | macOS and Linux, x86_64 and aarch64 (`brew install AMRSKH/tap/angkorfetch`) |
+| winget `AMRSKH.AngkorFetch` | 1.1.1 | Pending | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) is open. Once merged, `winget install angkorfetch` works |
 | `get.ps1` for Windows | v1.1.1 | Live | Pulls the asset from the latest release |
 | `get.sh` for Linux and macOS | v1.1.1 | Live | Pulls the asset from the latest release |
-| `.deb` | 1.1.1 | Download only | `amd64` only, no apt repository |
-| `.rpm` | 1.1.1 | Download only | `x86_64` only, no dnf or yum repository |
-| winget `AMRSKH.AngkorFetch` | 1.1.1 | Pending | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) is still open. `winget install` **does not work yet**, not until it merges |
-| Snap | — | Not published | `snap/snapcraft.yaml` is in the repo but CI never builds it |
-| Flatpak | — | Not published | `flatpak/io.github.AMRSKH.angkorfetch.yml` is in the repo but CI never builds it |
-| Homebrew core, AUR, nixpkgs, Debian, Fedora, Scoop, Chocolatey | — | Not submitted | No concrete plans yet |
-
-Installing the `.deb` and `.rpm`:
-
-```bash
-sudo dpkg -i angkorfetch_1.1.1_amd64.deb     # Debian and Ubuntu
-sudo rpm -i angkorfetch-1.1.1-1.x86_64.rpm   # Fedora, RHEL and openSUSE
-```
+| `.deb` (Debian, Ubuntu, Mint, MX) | 1.1.1 | Live | `amd64` debian package, installable via `sudo apt install ./angkorfetch_*.deb` |
+| `.rpm` (Fedora, RHEL, openSUSE) | 1.1.1 | Live | `x86_64` rpm package, installable via `sudo dnf install <rpm>` |
+| Arch Linux (AUR) | — | Roadmap | AUR package submission planned |
+| Snap / Flatpak | — | Not published | Manifests exist in repo but CI does not build them yet |
 
 The Homebrew formula and the winget manifests are updated automatically after a
 release by the `sync-packages` workflow, because they pin a `sha256` of artifacts
@@ -95,11 +135,11 @@ Prebuilt binaries are published for these five targets only.
 
 | Operating system | Arch | Prebuilt | Install via |
 |---|---|---|---|
-| Windows 10 and 11 | x86_64 | Yes | `get.ps1`, `cargo install` (winget pending) |
-| Linux with glibc | x86_64 | Yes | `get.sh`, Homebrew, `.deb`, `.rpm`, `cargo install` |
+| Windows 10 and 11 | x86_64 | Yes | `winget`, `get.ps1`, `cargo install` |
+| Linux with glibc | x86_64 | Yes | `apt` (.deb), `dnf` (.rpm), `get.sh`, Homebrew, `cargo install` |
 | Linux with glibc | aarch64 | Yes | `get.sh`, Homebrew, `cargo install` |
-| macOS on Intel | x86_64 | Yes | Homebrew, `get.sh`, `cargo install` |
-| macOS on Apple Silicon | aarch64 | Yes | Homebrew, `get.sh`, `cargo install` |
+| macOS on Intel | x86_64 | Yes | `brew`, `get.sh`, `cargo install` |
+| macOS on Apple Silicon | aarch64 | Yes | `brew`, `get.sh`, `cargo install` |
 
 Every other target has to be built from source with `cargo install angkorfetch`.
 
@@ -161,7 +201,7 @@ Model, Disk Type, Ports and WiFi.
 | DE | Fixed `Windows Explorer` | From `XDG_CURRENT_DESKTOP` | Fixed `Aqua` |
 | Packages | winget, npm, registry apps | dpkg, rpm, pacman, apk, flatpak, snap, npm | brew, npm |
 | Battery | Percent plus health | Percent plus health | Percent plus cycle count |
-| WiFi | SSID plus signal strength | Needs `iwgetid` or `nmcli` | SSID only, and relies on `airport`, which Apple removed in macOS 14.4 |
+| WiFi | SSID plus signal strength | Needs `iwgetid` or `nmcli` | SSID via `networksetup` (fallback to `airport`) |
 | Motherboard | Yes | Yes | Derived from `hw.model` |
 | BIOS | Yes | Yes | No, prints `Unknown` |
 | Serial | Yes | Needs root | Yes |

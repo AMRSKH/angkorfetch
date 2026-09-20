@@ -69,15 +69,50 @@ mkdir -p "$INSTALL_DIR"
 cp "$TMP_DIR/$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
 chmod +x "$INSTALL_DIR/$BIN_NAME"
 
+# On macOS, clear Gatekeeper quarantine attribute to prevent execution blocks
+if [ "$OS" = "Darwin" ]; then
+    xattr -c "$INSTALL_DIR/$BIN_NAME" 2>/dev/null || xattr -d com.apple.quarantine "$INSTALL_DIR/$BIN_NAME" 2>/dev/null || true
+fi
+
 info "Installed ${BIN_NAME} to ${INSTALL_DIR}/${BIN_NAME}"
 
 case ":$PATH:" in
     *":$INSTALL_DIR:"*) ;;
     *)
-        SHELL_RC="$HOME/.bashrc"
-        [ -n "${ZSH_VERSION:-}" ] && SHELL_RC="$HOME/.zshrc"
-        printf '\nexport PATH="%s:$PATH"\n' "$INSTALL_DIR" >> "$SHELL_RC"
-        warn "Added ${INSTALL_DIR} to PATH in ${SHELL_RC}. Run: source ${SHELL_RC} (or open a new terminal)"
+        UPDATED_CONFIGS=""
+        if [ "$OS" = "Darwin" ]; then
+            # macOS default shell is zsh since macOS Catalina (10.15); login shells also read .zprofile
+            for rc in "$HOME/.zprofile" "$HOME/.zshrc"; do
+                if [ -f "$rc" ] || [ ! -f "$HOME/.zprofile" -a ! -f "$HOME/.zshrc" ]; then
+                    touch "$rc" 2>/dev/null || true
+                    if ! grep -q "$INSTALL_DIR" "$rc" 2>/dev/null; then
+                        printf '\nexport PATH="%s:$PATH"\n' "$INSTALL_DIR" >> "$rc"
+                        UPDATED_CONFIGS="${UPDATED_CONFIGS} ${rc}"
+                    fi
+                fi
+            done
+            if [ -f "$HOME/.bash_profile" ] && ! grep -q "$INSTALL_DIR" "$HOME/.bash_profile" 2>/dev/null; then
+                printf '\nexport PATH="%s:$PATH"\n' "$INSTALL_DIR" >> "$HOME/.bash_profile"
+                UPDATED_CONFIGS="${UPDATED_CONFIGS} $HOME/.bash_profile"
+            fi
+        else
+            SHELL_NAME="$(basename "${SHELL:-bash}")"
+            if [ "$SHELL_NAME" = "zsh" ] || [ -f "$HOME/.zshrc" ]; then
+                TARGET_RC="$HOME/.zshrc"
+            else
+                TARGET_RC="$HOME/.bashrc"
+            fi
+            touch "$TARGET_RC" 2>/dev/null || true
+            if ! grep -q "$INSTALL_DIR" "$TARGET_RC" 2>/dev/null; then
+                printf '\nexport PATH="%s:$PATH"\n' "$INSTALL_DIR" >> "$TARGET_RC"
+                UPDATED_CONFIGS="${UPDATED_CONFIGS} ${TARGET_RC}"
+            fi
+        fi
+
+        if [ -n "$UPDATED_CONFIGS" ]; then
+            warn "Added ${INSTALL_DIR} to PATH in:${UPDATED_CONFIGS}"
+            warn "Restart your terminal or run: export PATH=\"${INSTALL_DIR}:\$PATH\""
+        fi
         ;;
 esac
 

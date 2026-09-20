@@ -582,10 +582,18 @@ fn get_wifi() -> String {
             _ => "None".to_string(),
         }
     } else if cfg!(target_os = "macos") {
-        run_stdout("sh", &["-c", "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I 2>/dev/null | grep ' SSID' | cut -d: -f2"])
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "None".to_string())
+        run_stdout(
+            "sh",
+            &[
+                "-c",
+                "dev=$(networksetup -listallhardwareports 2>/dev/null | awk '/Wi-Fi|AirPort/{getline; print $2}'); \
+                 [ -n \"$dev\" ] && networksetup -getairportnetwork \"$dev\" 2>/dev/null | sed -E 's/^Current Wi-Fi Network:\\s*//' | grep -v 'Error' || \
+                 /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I 2>/dev/null | grep ' SSID' | cut -d: -f2",
+            ],
+        )
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "None".to_string())
     } else {
         "None".to_string()
     }
