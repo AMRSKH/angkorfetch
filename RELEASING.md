@@ -52,36 +52,108 @@ Retired development lines are kept as `archive/*` tags rather than as branches,
 so their commits stay reachable without cluttering the branch list. `archive/v0.2`
 is the tip of the abandoned v0.2 line.
 
+## Release Workflow Lifecycle
+
+```text
+Code complete
+  │
+  ▼
+Tests (local & CI)
+  │
+  ▼
+Version bump (Cargo.toml, specs, manifests)
+  │
+  ▼
+Git tag & push (vX.Y.Z)
+  │
+  ▼
+Release build (5 cross-platform targets)
+  │
+  ▼
+Packages (.deb & .rpm)
+  │
+  ▼
+Checksums (sha256sum -> checksums.txt)
+  │
+  ▼
+GitHub Release (attached 8 assets)
+  │
+  ▼
+Package updates (sync-packages.yml rewrites Formula & winget)
+  │
+  ▼
+External package publication (WinGet PR, Homebrew tap/core, Copr, AUR, Flathub)
+  │
+  ▼
+Installation verification & Documentation verification
+```
+
+### Responsibility Matrix
+
+* **Automated (CI)**:
+  - Multi-platform tests (Ubuntu, Windows, macOS)
+  - Cross-compilation for 5 target binaries
+  - Generation of `.deb` and `.rpm` packages
+  - Aggregation of `checksums.txt`
+  - GitHub Release creation and asset publishing
+  - Automated PR generation for Homebrew and WinGet manifest updates
+* **Maintainer Actions (Owner)**:
+  - Version bump across manifests and lockfile
+  - Creating and pushing the signed git tag
+  - Reviewing and merging the `automation/sync-packages-vX.Y.Z` PR
+  - Documentation status updates
+* **External Publication (Manual / Triggered Submissions)**:
+  - Submitting updated WinGet manifest to `microsoft/winget-pkgs`
+  - Syncing `Formula/angkorfetch.rb` to `AMRSKH/homebrew-tap`
+  - Triggering Copr build for Fedora DNF
+  - Submitting updated `PKGBUILD` to AUR for Arch Linux
+  - Opening PR on Flathub repository
+
 ## Cutting a release
 
 1. **Bump the version** in a pull request into `main`:
 
-   - `Cargo.toml` and `Cargo.lock` (run a build to refresh the lock)
-   - `README.md` sample banner
+   - `Cargo.toml` and `Cargo.lock` (run a build or `cargo check` to refresh the lock)
+   - `README.md` version tables and sample banners
    - `snap/snapcraft.yaml` — both `version` and `source-tag`
    - `flatpak/io.github.AMRSKH.angkorfetch.yml` — `tag`
+   - `flatpak/io.github.AMRSKH.angkorfetch.metainfo.xml` — `<release version="X.Y.Z" ...>`
+   - `linux/arch/PKGBUILD` — `pkgver`
    - `linux/rpm/angkorfetch.spec` — `Version` plus a new `%changelog` entry
    - `linux/rpm/build-rpm.sh` and `linux/deb/build-deb.sh` — `VERSION`
 
    Do **not** touch `Formula/` or `winget-pkgs/` here. See
    [Why package definitions lag](#why-package-definitions-lag).
 
-2. **Merge the pull request** once CI is green.
+2. **Run local verification**:
+   ```bash
+   cargo test --locked
+   cargo fmt --check
+   cargo clippy --all-targets --all-features -- -D warnings
+   python -m unittest discover -s scripts -p "test_*.py"
+   python scripts/sync_package_manifests.py --check
+   ```
 
-3. **Tag the merge commit** and push:
+3. **Merge the pull request** into `main` once CI is green.
+
+4. **Tag the merge commit** and push:
 
    ```bash
    git tag -a vX.Y.Z <merge-sha> -m "AngkorFetch vX.Y.Z"
    git push origin vX.Y.Z
    ```
 
-4. **Review the auto-opened package sync pull request** and merge it.
+5. **Review the auto-opened package sync pull request** (`automation/sync-packages-vX.Y.Z`) and merge it.
 
-The version must be bumped in step 1 rather than relying on the tag alone,
-because the two version sources are independent: `.deb`/`.rpm` versions come
-from the tag via `VER="${GITHUB_REF_NAME#v}"`, while the binary's reported
-version comes from `Cargo.toml`. Tagging without bumping ships a `1.1.1`-named
-package containing a binary that reports `1.1.0`.
+6. **External Package Submissions**:
+   - **WinGet**: Submit to `microsoft/winget-pkgs` via `wingetcreate`.
+   - **Homebrew**: Update `Formula/angkorfetch.rb` in `AMRSKH/homebrew-tap`.
+   - **Fedora (DNF)**: Build in Copr `amrskh/angkorfetch`.
+   - **Arch Linux**: Publish `linux/arch/PKGBUILD` to AUR.
+   - **Flatpak**: Submit update to Flathub.
+
+7. **Verify installation & documentation**:
+   Verify each package manager resolves the new version and update status tables accordingly.
 
 ## release.yml
 

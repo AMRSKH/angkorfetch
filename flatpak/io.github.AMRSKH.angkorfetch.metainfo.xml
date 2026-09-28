@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="console-application">
+  <id>io.github.AMRSKH.angkorfetch</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>AngkorFetch</name>
+  <summary>A fast, cross-platform system fetch tool</summary>
+  <description>
+    <p>
+      AngkorFetch is a fast, cross-platform system-info fetch tool written in Rust for Windows, macOS, and Linux.
+      It displays essential hardware and operating system metrics (OS, CPU, GPU, memory, disk, network, battery, and packages)
+      in a clean, colorful terminal layout with automatic terminal adaptation.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/AMRSKH/angkorfetch</url>
+  <url type="bugtracker">https://github.com/AMRSKH/angkorfetch/issues</url>
+  <developer id="io.github.AMRSKH">
+    <name>AMRSKH</name>
+  </developer>
+  <releases>
+    <release version="1.1.1" date="2026-07-30" />
+    <release version="1.1.0" date="2026-07-30" />
+    <release version="1.0.1" date="2026-07-27" />
+  </releases>
+  <provides>
+    <binary>angkorfetch</binary>
+  </provides>
+</component>

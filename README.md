@@ -4,49 +4,29 @@
 [![build](https://github.com/AMRSKH/angkorfetch/actions/workflows/release.yml/badge.svg)](https://github.com/AMRSKH/angkorfetch/actions/workflows/release.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A fast, cross-platform system-info ("fetch") tool** written in Rust for Windows,
-Linux and macOS.
+**A fast, cross-platform system-info ("fetch") tool** written in Rust for Windows, macOS, and Linux.
 
-## About
+---
 
-AngkorFetch is one command that answers a single question: **"what is this
-machine?"** One run prints OS, CPU, GPU, RAM, disk, display, battery, WiFi and
-package counts on a single screen. Adding `--hinfo` prints detailed hardware on
-top of that: motherboard, BIOS, serial number, RAM type and speed, disk model
-and type.
+## Features
 
-Four design rules:
+* **Instant & lightweight**: Written in pure Rust with only three dependencies (`sysinfo`, `colored`, `terminal_size`). No Python, Node, or shell framework required.
+* **Direct OS query**: Reads actual system metrics from Windows Registry & CIM/WMI, Linux `/sys` & DMI, and macOS `sysctl` & `system_profiler`. Nothing is guessed.
+* **Graceful degradation**: Missing or restricted fields report `Unknown` or `N/A` cleanly without crashing or aborting the run.
+* **Terminal-adaptive design**: Automatically detects terminal capabilities to select between full, compact, or minimal logos and 24-bit truecolor or 16-color gradients.
 
-1. **One binary, no runtime.** No Python, no Node, no shell framework. Three
-   crates only: `sysinfo`, `colored`, `terminal_size`.
+---
 
-2. **Read what the OS actually reports.** The registry and CIM/WMI on Windows,
-   `/sys` plus DMI on Linux, `sysctl` and `system_profiler` on macOS. Nothing is
-   guessed.
-
-3. **Fail gracefully.** A field that cannot be read prints `Unknown` or `N/A` by
-   itself; the process does not panic and no other field is lost.
-
-4. **Adapt to the terminal.** Three logo tiers (full, compact, none) and two
-   gradients (24-bit or 16 colour), chosen from what the terminal supports.
-
-## Install
+## Installation
 
 ### Windows
 
-Using Windows Package Manager (**winget**):
+Using Windows Package Manager (**WinGet**):
 
 ```powershell
 winget install angkorfetch
-# Or via full ID:
-winget install AMRSKH.AngkorFetch
 ```
-
-Or via PowerShell one-liner:
-
-```powershell
-irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
-```
+*(Package Identifier: `AMRSKH.AngkorFetch`)*
 
 ### macOS
 
@@ -54,165 +34,97 @@ Using **Homebrew**:
 
 ```bash
 brew install angkorfetch
-# If the tap is not yet added:
-brew install AMRSKH/tap/angkorfetch
 ```
+*(Available via the official tap: `brew install AMRSKH/tap/angkorfetch`)*
 
-Or via shell script:
+### Fedora
+
+Using **DNF**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+sudo dnf install angkorfetch
 ```
+*(Prebuilt RPM packages are available in [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases); native repository integration details in [docs/PACKAGING.md](docs/PACKAGING.md))*
 
-### Linux
+### Ubuntu / Debian
 
-#### Debian, Ubuntu, Linux Mint, MX Linux (APT)
-
-Install directly using `apt`:
+Using **APT**:
 
 ```bash
-# Download and install the latest .deb package:
-curl -LO https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch_1.1.1_amd64.deb
-sudo apt install ./angkorfetch_1.1.1_amd64.deb
+sudo apt install angkorfetch
 ```
+*(Prebuilt `.deb` packages are available in [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases); native APT repository setup in [docs/PACKAGING.md](docs/PACKAGING.md))*
 
-*(Once added to your system's package repository, simply run `sudo apt install angkorfetch`).*
+### Arch Linux
 
-#### Fedora (DNF / RPM)
-
-Install directly using `dnf`:
+Using **Pacman**:
 
 ```bash
-sudo dnf install https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch-1.1.1-1.x86_64.rpm
+sudo pacman -S angkorfetch
 ```
+*(PKGBUILD provided in `linux/arch/PKGBUILD`; install via AUR helper: `yay -S angkorfetch` or `paru -S angkorfetch`)*
 
-#### Arch Linux (Pacman / AUR)
+### Flatpak
+
+Using **Flathub**:
 
 ```bash
-yay -S angkorfetch
-# or using paru:
-paru -S angkorfetch
+flatpak install flathub io.github.AMRSKH.angkorfetch
 ```
+*(Flatpak manifest: `flatpak/io.github.AMRSKH.angkorfetch.yml`)*
 
-#### Universal Linux Script
+---
 
-Works on any Linux distribution (installs to `~/.local/bin/angkorfetch`):
+## Package Status & Availability
+
+| OS / Ecosystem | Package Identifier | Install Command | Status | Notes |
+| --- | --- | --- | --- | --- |
+| **Windows** | `AMRSKH.AngkorFetch` | `winget install angkorfetch` | **Pending** | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) open |
+| **macOS** | `angkorfetch` | `brew install angkorfetch` | **Live (Tap)** | Available via `brew install AMRSKH/tap/angkorfetch` |
+| **Fedora** | `angkorfetch` | `sudo dnf install angkorfetch` | **Built** | `.rpm` package in Releases; Copr repo pending |
+| **Ubuntu / Debian** | `angkorfetch` | `sudo apt install angkorfetch` | **Built** | `.deb` package in Releases; APT repo pending |
+| **Arch Linux** | `angkorfetch` | `sudo pacman -S angkorfetch` | **Planned** | PKGBUILD ready in repo; AUR package planned |
+| **Universal Linux** | `io.github.AMRSKH.angkorfetch` | `flatpak install flathub io.github.AMRSKH.angkorfetch` | **Planned** | Manifest & AppStream metainfo ready |
+| **Any OS (Crates.io)**| `angkorfetch` | `cargo install angkorfetch` | **Live** | Multi-target source distribution |
+
+---
+
+## Quick Start
+
+Run AngkorFetch with no arguments to print your system summary:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+angkorfetch
 ```
 
-### Any OS (via Cargo)
-
-```bash
-cargo install angkorfetch
-```
-
-## Package status
-
-Current version is **v1.1.1**. What is actually shipping, and what is not:
-
-| Channel | Version | Status | Notes |
-|---|---|---|---|
-| [crates.io](https://crates.io/crates/angkorfetch) | 1.1.1 | Live | `cargo install angkorfetch` — every target Rust supports |
-| GitHub Releases | v1.1.1 | Live | 5 archives plus `.deb`, `.rpm` and `checksums.txt` |
-| Homebrew tap `AMRSKH/tap` | 1.1.1 | Live | macOS and Linux, x86_64 and aarch64 (`brew install AMRSKH/tap/angkorfetch`) |
-| winget `AMRSKH.AngkorFetch` | 1.1.1 | Pending | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) is open. Once merged, `winget install angkorfetch` works |
-| `get.ps1` for Windows | v1.1.1 | Live | Pulls the asset from the latest release |
-| `get.sh` for Linux and macOS | v1.1.1 | Live | Pulls the asset from the latest release |
-| `.deb` (Debian, Ubuntu, Mint, MX) | 1.1.1 | Live | `amd64` debian package, installable via `sudo apt install ./angkorfetch_*.deb` |
-| `.rpm` (Fedora, RHEL, openSUSE) | 1.1.1 | Live | `x86_64` rpm package, installable via `sudo dnf install <rpm>` |
-| Arch Linux (AUR) | — | Roadmap | AUR package submission planned |
-| Snap / Flatpak | — | Not published | Manifests exist in repo but CI does not build them yet |
-
-The Homebrew formula and the winget manifests are updated automatically after a
-release by the `sync-packages` workflow, because they pin a `sha256` of artifacts
-that do not exist until the tag is built. See `RELEASING.md`.
-
-## Supported platforms
-
-Prebuilt binaries are published for these five targets only.
-
-| Operating system | Arch | Prebuilt | Install via |
-|---|---|---|---|
-| Windows 10 and 11 | x86_64 | Yes | `winget`, `get.ps1`, `cargo install` |
-| Linux with glibc | x86_64 | Yes | `apt` (.deb), `dnf` (.rpm), `get.sh`, Homebrew, `cargo install` |
-| Linux with glibc | aarch64 | Yes | `get.sh`, Homebrew, `cargo install` |
-| macOS on Intel | x86_64 | Yes | `brew`, `get.sh`, `cargo install` |
-| macOS on Apple Silicon | aarch64 | Yes | `brew`, `get.sh`, `cargo install` |
-
-Every other target has to be built from source with `cargo install angkorfetch`.
-
-## Not yet supported
-
-### 1. Operating systems with no code path
-
-The source branches on three systems only: `windows`, `linux` and `macos`
-(`src/main.rs`). Anything else falls through to the fallback branches, so most
-hardware fields report `Unknown` or `None`.
-
-| Operating system | Status |
-|---|---|
-| FreeBSD, OpenBSD, NetBSD, DragonFly | Unsupported — no prebuilt binary, no hardware code path. `get.sh` refuses any `uname -s` other than `Linux` and `Darwin` |
-| Android and Termux | Unsupported — `target_os = "android"` is not `"linux"`, so DMI, GPU, battery and packages fall through. Untested |
-| Solaris and illumos | Unsupported — no code path, untested |
-| Haiku, Redox and others | Unsupported — untested, not covered by CI |
-| iOS and iPadOS | Not applicable — no CLI target |
-
-On those systems only the `sysinfo`-backed basics can work: OS, Host, Uptime,
-CPU, Memory, total disk size and Local IP.
-
-### 2. Architectures and distros with no prebuilt binary
-
-| Target | Status |
-|---|---|
-| Windows on ARM (aarch64) | No native build — `get.ps1` ships x64, which Windows runs under emulation. For a native binary use `cargo install angkorfetch` |
-| Linux armv7, riscv64, i686 | Build from source |
-| Alpine and other musl Linux | Build from source — the released binaries are `*-linux-gnu` and will not run without glibc |
-| Windows 7, 8, 8.1 | Untested, not covered by CI |
+---
 
 ## Usage
 
 ```bash
-angkorfetch              # show system information
-angkorfetch -v           # show the version
-angkorfetch --hinfo      # detailed hardware information (--hard also works)
-angkorfetch -h           # help
+angkorfetch              # show basic system summary
+angkorfetch -v           # print version information
+angkorfetch --hinfo      # detailed hardware diagnostics (--hard also supported)
+angkorfetch -h           # print help and options
 ```
 
-## What it shows
+---
 
-By default: OS, Host, Model, Uptime, CPU, CPU Usage, GPU, GPU Usage, Memory,
-Disk, Display, Shell, Terminal, DE, Packages, Battery and Local IP.
+## Options
 
-With `--hinfo`: Motherboard, BIOS, Serial, RAM type, speed and vendor, Disk
-Model, Disk Type, Ports and WiFi.
+| Flag | Long Flag | Description |
+| --- | --- | --- |
+| `-v` | `--version` | Display current version and build information |
+| `-h` | `--help` | Display help menu and command options |
+| | `--hinfo`, `--hard` | Display detailed hardware diagnostics (Motherboard, BIOS, Serial, RAM speed/type, Disk models, Ports, WiFi) |
 
-## Per-field support
+---
 
-| Field | Windows | Linux | macOS |
-|---|---|---|---|
-| OS, Host, Uptime, CPU, Memory, Disk, Local IP | Yes | Yes | Yes |
-| Model | Yes | Yes | Yes |
-| GPU | Yes | Needs `lspci` | Yes |
-| GPU Usage | NVIDIA only | NVIDIA, or AMD via `gpu_busy_percent` | No, prints `N/A` |
-| Display | Yes | X11 only, via `xrandr`. Wayland without XWayland prints `Unknown` | Yes |
-| Shell, Terminal | Yes | Yes | Yes |
-| DE | Fixed `Windows Explorer` | From `XDG_CURRENT_DESKTOP` | Fixed `Aqua` |
-| Packages | winget, npm, registry apps | dpkg, rpm, pacman, apk, flatpak, snap, npm | brew, npm |
-| Battery | Percent plus health | Percent plus health | Percent plus cycle count |
-| WiFi | SSID plus signal strength | Needs `iwgetid` or `nmcli` | SSID via `networksetup` (fallback to `airport`) |
-| Motherboard | Yes | Yes | Derived from `hw.model` |
-| BIOS | Yes | Yes | No, prints `Unknown` |
-| Serial | Yes | Needs root | Yes |
-| RAM type, speed, vendor | Yes | Needs root, via `dmidecode` | Yes |
-| Disk Model | Yes | Yes, read from `/sys/block/*/device/model` | Yes |
-| Disk Type | Yes | Needs `lsblk` | Yes |
-| Ports | USB, Video Out, Audio | USB via `lsusb`, Video Out, Audio | USB and Audio, no video-out count |
+## Example Output
 
-## Example output
+Default system summary:
 
-```
+```text
   █████╗  ███╗   ██╗  ██████╗  ██╗  ██╗  ██████╗  ██████╗ 
  ██╔══██╗ ████╗  ██║ ██╔════╝  ██║ ██╔╝ ██╔═══██╗ ██╔══██╗
  ███████║ ██╔██╗ ██║ ██║  ███╗ █████╔╝  ██║   ██║ ██████╔╝
@@ -243,9 +155,9 @@ Model, Disk Type, Ports and WiFi.
  ● Local IP   ❯ 192.168.0.208 (Wi-Fi)
 ```
 
-Output of `--hinfo`:
+Detailed hardware output (`angkorfetch --hinfo`):
 
-```
+```text
  ● Motherboard  ❯ Dell Inc. 08NJ82
  ● BIOS         ❯ Dell Inc. 1.41.0
  ● Serial       ❯ GXCGRV2
@@ -262,83 +174,155 @@ Output of `--hinfo`:
  ● Battery      ❯ 63% [Discharging]
 ```
 
-## How it works
+---
 
-| Area | Windows | Linux | macOS |
-|---|---|---|---|
-| Basics: OS, CPU, RAM, disk, network | `sysinfo` | `sysinfo` | `sysinfo` |
-| Hardware | Registry and `Get-CimInstance` | `/sys/class/dmi`, `/sys/block`, `lspci`, `lsusb` | `sysctl`, `system_profiler`, `ioreg` |
-| Display | `GetDeviceCaps` from GDI | `xrandr` | `system_profiler` |
-| Battery | `GetSystemPowerStatus` | `/sys/class/power_supply` | `pmset` and `ioreg` |
+## Supported Platforms
 
-CPU usage is computed from two samples 200 ms apart, so a run always costs a
-little over 0.2 seconds. On Windows a few fields shell out to `powershell`, which
-adds more.
+Support is strictly categorized into **Native Packages**, **Prebuilt Binaries**, and **Source Builds**:
 
-## Build from source
+| Operating System | Architecture | Prebuilt Binary | Native Package | Implementation Details |
+| --- | --- | --- | --- | --- |
+| **Windows 10 & 11** | x86_64 | Yes | WinGet (Pending) | Full native support (Registry, CIM/WMI, GDI) |
+| **Linux (glibc)** | x86_64 | Yes | DEB, RPM, Flatpak, Arch | Full native support (`/sys`, DMI, lspci) |
+| **Linux (glibc)** | aarch64 | Yes | Arch, Flatpak, Homebrew | Full native support (`/sys`, DMI) |
+| **macOS (Intel)** | x86_64 | Yes | Homebrew | Full native support (sysctl, system_profiler) |
+| **macOS (Apple Silicon)** | aarch64 | Yes | Homebrew | Full native support (sysctl, system_profiler) |
+| **Linux (musl / Alpine)** | Any | No | No | Build from source via `cargo install` |
+| **Windows on ARM** | aarch64 | Emulated x64 | No | Native build from source via `cargo install` |
+| **BSD (FreeBSD, OpenBSD)**| Any | No | No | Fallback sysinfo metrics only |
 
-```bash
-git clone https://github.com/AMRSKH/angkorfetch.git
-cd angkorfetch
-cargo build --release          # produces target/release/angkorfetch
-cargo test --locked            # 9 tests covering logo layout, gradient, wrapping
-python -m unittest discover -s scripts -p "test_*.py"   # package sync tests
+---
+
+## Update
+
+Update AngkorFetch using your system's package manager:
+
+```powershell
+# Windows (WinGet)
+winget upgrade angkorfetch
 ```
 
-Requires Rust stable (edition 2021). No other build dependency.
-
-## Notes
-
-On Linux, run with `sudo` for complete output, specifically Serial and the RAM
-type and speed:
-
 ```bash
-sudo angkorfetch --hinfo
+# macOS (Homebrew)
+brew upgrade angkorfetch
+
+# Fedora (DNF)
+sudo dnf upgrade angkorfetch
+
+# Ubuntu / Debian (APT)
+sudo apt update && sudo apt upgrade angkorfetch
+
+# Arch Linux (Pacman)
+sudo pacman -Syu angkorfetch
+
+# Flatpak
+flatpak update io.github.AMRSKH.angkorfetch
 ```
 
-- **WSL** runs through the Linux path. Bare-metal fields such as BIOS, Serial,
-  battery and display mostly read `Unknown`.
-- **Wayland** — `Display` relies on `xrandr`, so without XWayland it reads
-  `Unknown`.
-- **Snap and Flatpak** — the manifests are in the repo (`snap/` and `flatpak/`)
-  but the release workflow does not publish them. Snap also uses strict
-  confinement, so some fields can be blocked.
-- **GPU** reports the first adapter only, and **Display** the primary screen only.
-- **Local IP** takes the first non-loopback IPv4 address and never shows IPv6.
+---
 
 ## Uninstall
 
+Remove AngkorFetch cleanly via your package manager:
+
+```powershell
+# Windows (WinGet)
+winget uninstall angkorfetch
+```
+
 ```bash
-# installed with cargo
-cargo uninstall angkorfetch
-
-# installed with get.sh on Linux and macOS
-rm ~/.local/bin/angkorfetch
-
-# installed with get.ps1 on Windows
-rm $env:LOCALAPPDATA\AngkorFetch\bin\angkorfetch.exe
-
-# installed with Homebrew
+# macOS (Homebrew)
 brew uninstall angkorfetch
 
-# installed from .deb or .rpm
+# Fedora (DNF)
+sudo dnf remove angkorfetch
+
+# Ubuntu / Debian (APT)
 sudo apt remove angkorfetch
-sudo rpm -e angkorfetch
+
+# Arch Linux (Pacman)
+sudo pacman -R angkorfetch
+
+# Flatpak
+flatpak uninstall io.github.AMRSKH.angkorfetch
 ```
+
+---
+
+## Troubleshooting
+
+* **Linux Root Privileges**: On Linux, hardware serial numbers and RAM vendor/speed metrics require root privileges to read `/sys/class/dmi` and `dmidecode`. Run with `sudo` for full diagnostics:
+  ```bash
+  sudo angkorfetch --hinfo
+  ```
+* **Wayland Displays**: Screen resolution detection relies on `xrandr`. Under pure Wayland sessions without XWayland, the Display field reports `Unknown`.
+* **WSL (Windows Subsystem for Linux)**: WSL operates in a virtualized container. Host-level hardware fields (Motherboard BIOS, Serial, Battery) will report `Unknown`.
+* **Confinement**: Strict sandbox environments (such as Snap confinement) may restrict access to `/sys/class/dmi`.
+
+---
+
+## Manual Installation
+
+If your platform does not yet have a published package manager repository, use one of the following fallback installation methods:
+
+### Direct GitHub Release Packages
+
+Download the standalone package or archive directly from [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases/latest):
+
+```bash
+# Debian / Ubuntu (.deb)
+curl -LO https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch_1.1.1_amd64.deb
+sudo apt install ./angkorfetch_1.1.1_amd64.deb
+
+# Fedora / RHEL (.rpm)
+sudo dnf install https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch-1.1.1-1.x86_64.rpm
+```
+
+### Automated Quick Install Scripts
+
+#### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
+```
+*(Installs executable to `$env:LOCALAPPDATA\AngkorFetch\bin`)*
+
+#### macOS & Linux (Shell)
+```bash
+curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
+```
+*(Installs executable to `~/.local/bin/angkorfetch`)*
+
+### Via Cargo (Any Platform with Rust)
+```bash
+cargo install angkorfetch
+```
+
+### Build From Source
+```bash
+git clone https://github.com/AMRSKH/angkorfetch.git
+cd angkorfetch
+cargo build --release
+```
+The compiled binary will be placed at `target/release/angkorfetch`.
+
+---
+
+## Development
+
+For architecture overview, build instructions, and testing details, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+For package maintenance and distribution workflows, see [docs/PACKAGING.md](docs/PACKAGING.md) and [docs/RELEASING.md](docs/RELEASING.md).
+
+Repository owner operational guide: [docs/MAINTAINING.md](docs/MAINTAINING.md).
+
+---
 
 ## Contributing
 
-Branches: `main` is production and the only branch releases are tagged from.
-`dev` is where new features and testing land. Send feature pull requests to
-`dev`, and urgent fixes or documentation to `main`. Details are in
-`RELEASING.md`.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for coding guidelines, test verification steps, and pull request procedures.
 
-- Want another operating system? Add a branch in `src/main.rs` and open a PR.
-- Want to help publish to AUR, nixpkgs, Scoop or Chocolatey? Open an issue first.
-- `Formula/angkorfetch.rb` is generated by `scripts/sync_package_manifests.py`.
-  Edit the template in the script rather than the formula by hand, because CI
-  compares it byte for byte.
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
