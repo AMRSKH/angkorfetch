@@ -44,7 +44,10 @@ Write-Info "Installed $BinName to $InstallDir"
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$InstallDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-    Write-Warn "Added $InstallDir to PATH. Open a new terminal window for it to take effect."
+    Write-Warn "Added $InstallDir to persistent User PATH."
+}
+if ($env:Path -notlike "*$InstallDir*") {
+    $env:Path = "$env:Path;$InstallDir"
 }
 
 Write-Host ""

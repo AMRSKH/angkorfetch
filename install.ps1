@@ -58,7 +58,10 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$InstallDir*") {
     Write-Warn "$InstallDir is not on your PATH yet. Adding it..."
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-    Write-Warn "Open a new terminal window for the PATH change to take effect."
+    Write-Warn "Added $InstallDir to persistent User PATH."
+}
+if ($env:Path -notlike "*$InstallDir*") {
+    $env:Path = "$env:Path;$InstallDir"
 }
 
 Write-Host ""
