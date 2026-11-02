@@ -19,59 +19,62 @@
 
 ## Installation
 
-### Windows
+> **Working methods listed first.** Methods marked **`[Pending]`** or **`[Planned]`** are not yet in the respective package repository — use the quick-install scripts or `cargo install` in the meantime.
 
-Using Windows Package Manager (**WinGet**):
+### Quick install (recommended — works today, no Rust required)
 
+#### Windows (PowerShell 5.1+)
 ```powershell
-winget install angkorfetch
+irm https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.ps1 | iex
 ```
-*(Package Identifier: `AMRSKH.AngkorFetch`)*
+*(Installs to `$env:LOCALAPPDATA\AngkorFetch\bin`. If `angkorfetch` is not recognised after install, open a new terminal window.)*
 
-### macOS
-
-Using **Homebrew**:
-
+#### macOS & Linux (bash/zsh)
 ```bash
-brew install angkorfetch
+curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | bash
 ```
-*(Available via the official tap: `brew install AMRSKH/tap/angkorfetch`)*
+*(Installs to `~/.local/bin/angkorfetch`)*
 
-### Fedora
+### Via Cargo (any platform with Rust installed)
+```bash
+cargo install angkorfetch
+```
 
-Using **DNF**:
+### macOS — Homebrew (works today)
+```bash
+brew install AMRSKH/tap/angkorfetch
+```
+*(The un-tapped `brew install angkorfetch` requires homebrew-core merge — **`[Pending]`**.)*
 
+### Windows — WinGet **`[Pending]`**
+```powershell
+winget install AMRSKH.AngkorFetch
+```
+*(PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) open; not yet in winget repository.)*
+
+### Fedora — DNF **`[Pending]`**
 ```bash
 sudo dnf install angkorfetch
 ```
-*(Prebuilt RPM packages are available in [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases); native repository integration details in [docs/PACKAGING.md](docs/PACKAGING.md))*
+*(Copr repository not yet published. Use the `.rpm` from [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases/latest) — see Manual Install below.)*
 
-### Ubuntu / Debian
-
-Using **APT**:
-
+### Ubuntu / Debian — APT **`[Pending]`**
 ```bash
 sudo apt install angkorfetch
 ```
-*(Prebuilt `.deb` packages are available in [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases); native APT repository setup in [docs/PACKAGING.md](docs/PACKAGING.md))*
+*(APT repository not yet published. Use the `.deb` from [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases/latest) — see Manual Install below.)*
 
-### Arch Linux
-
-Using **Pacman**:
-
+### Arch Linux — AUR **`[Planned]`**
 ```bash
-sudo pacman -S angkorfetch
+yay -S angkorfetch    # or: paru -S angkorfetch
 ```
-*(PKGBUILD provided in `linux/arch/PKGBUILD`; install via AUR helper: `yay -S angkorfetch` or `paru -S angkorfetch`)*
+*(AUR package not yet published. PKGBUILD is in `linux/arch/PKGBUILD`.)*
 
-### Flatpak
-
-Using **Flathub**:
-
+### Flatpak — Flathub **`[Planned]`**
 ```bash
 flatpak install flathub io.github.AMRSKH.angkorfetch
 ```
-*(Flatpak manifest: `flatpak/io.github.AMRSKH.angkorfetch.yml`)*
+*(Not yet submitted to Flathub. Manifest is in `flatpak/`.)*
 
 ---
 
@@ -270,13 +273,24 @@ If your platform does not yet have a published package manager repository, use o
 Download the standalone package or archive directly from [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases/latest):
 
 ```bash
+# The filenames include the version number; use this snippet to resolve it automatically.
+
 # Debian / Ubuntu (.deb)
-curl -LO https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch_1.1.1_amd64.deb
-sudo apt install ./angkorfetch_1.1.1_amd64.deb
+VER=$(curl -fsSL https://github.com/AMRSKH/angkorfetch/releases/latest \
+      | grep -o 'tag/v[^"]*' | head -1 | cut -d/ -f2)
+DEB="angkorfetch_${VER#v}_amd64.deb"
+curl -fsSL "https://github.com/AMRSKH/angkorfetch/releases/latest/download/${DEB}" -o "$DEB"
+sudo apt install "./$DEB"
 
 # Fedora / RHEL (.rpm)
-sudo dnf install https://github.com/AMRSKH/angkorfetch/releases/latest/download/angkorfetch-1.1.1-1.x86_64.rpm
+VER=$(curl -fsSL https://github.com/AMRSKH/angkorfetch/releases/latest \
+      | grep -o 'tag/v[^"]*' | head -1 | cut -d/ -f2)
+RPM="angkorfetch-${VER#v}-1.x86_64.rpm"
+sudo dnf install "https://github.com/AMRSKH/angkorfetch/releases/latest/download/${RPM}"
 ```
+
+> **Tip**: Or simply visit [GitHub Releases](https://github.com/AMRSKH/angkorfetch/releases/latest)
+> and download the file that matches your distro directly.
 
 ### Automated Quick Install Scripts
 
