@@ -114,6 +114,10 @@ jobs:
 
   build:
     needs: [test, version-check]
+    if: |
+      always() &&
+      (needs.test.result == 'success') &&
+      (needs.version-check.result == 'success' || needs.version-check.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
