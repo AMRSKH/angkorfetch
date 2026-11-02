@@ -69,6 +69,49 @@ jobs:
       - name: Check the committed Homebrew formula matches the generator
         run: python scripts/sync_package_manifests.py --check
 
+      - name: Build release binary for smoke test
+        run: cargo build --release --locked
+
+      - name: Smoke test (verify exit code 0 and no panic)
+        shell: bash
+        run: |
+          BIN="./target/release/angkorfetch"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            BIN="./target/release/angkorfetch.exe"
+          fi
+          echo "Testing version option (-v)..."
+          "$BIN" -v
+          echo "Testing default fetch..."
+          "$BIN"
+          echo "Testing hardware info (--hinfo)..."
+          "$BIN" --hinfo
+          echo "Smoke tests passed."
+
+
+  # Container test for installer compatibility on Alpine (musl) and Ubuntu 20.04 (glibc)
+  test-installer-containers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: alpine
+            image: alpine:latest
+            setup: apk add --no-cache bash curl tar
+          - name: ubuntu-2004
+            image: ubuntu:20.04
+            setup: apt-get update && apt-get install -y bash curl tar
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ${{ matrix.setup }}
+      - name: Shell syntax check (get.sh)
+        run: bash -n get.sh
+      - name: Shell syntax check (install.sh)
+        run: bash -n install.sh
+
   build:
     needs: [test, version-check]
     strategy:
@@ -78,6 +121,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             asset: angkorfetch-linux-x86_64.tar.gz
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            asset: angkorfetch-linux-x86_64-musl.tar.gz
+            use_cross: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             asset: angkorfetch-linux-aarch64.tar.gz
@@ -267,6 +314,7 @@ jobs:
           missing=0
           for f in \
             angkorfetch-linux-x86_64.tar.gz \
+            angkorfetch-linux-x86_64-musl.tar.gz \
             angkorfetch-linux-aarch64.tar.gz \
             angkorfetch-macos-x86_64.tar.gz \
             angkorfetch-macos-aarch64.tar.gz \
