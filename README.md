@@ -40,17 +40,17 @@ curl -fsSL https://raw.githubusercontent.com/AMRSKH/angkorfetch/main/get.sh | ba
 cargo install angkorfetch
 ```
 
-### macOS — Homebrew (works today)
+### macOS — Homebrew **`[Planned: homebrew-core]`**
 ```bash
-brew install AMRSKH/tap/angkorfetch
+brew install angkorfetch
 ```
-*(The un-tapped `brew install angkorfetch` requires homebrew-core merge — **`[Pending]`**.)*
+*(Planned for submission to homebrew-core built from source.)*
 
 ### Windows — WinGet **`[Pending]`**
 ```powershell
 winget install AMRSKH.AngkorFetch
 ```
-*(PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) open; not yet in winget repository.)*
+*(Not yet available: initial submission was rejected due to manifest file naming; will resubmit with corrected filenames `AMRSKH.AngkorFetch.*.yaml`.)*
 
 ### Fedora — DNF **`[Pending]`**
 ```bash
@@ -82,8 +82,8 @@ flatpak install flathub io.github.AMRSKH.angkorfetch
 
 | OS / Ecosystem | Package Identifier | Install Command | Status | Notes |
 | --- | --- | --- | --- | --- |
-| **Windows** | `AMRSKH.AngkorFetch` | `winget install angkorfetch` | **Pending** | PR [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790) open |
-| **macOS** | `angkorfetch` | `brew install angkorfetch` | **Live (Tap)** | Available via `brew install AMRSKH/tap/angkorfetch` |
+| **Windows** | `AMRSKH.AngkorFetch` | `winget install AMRSKH.AngkorFetch` | **Pending** | Rejected due to manifest file naming; will resubmit |
+| **macOS** | `angkorfetch` | `brew install angkorfetch` | **Planned (homebrew-core)** | Direct submission to homebrew-core planned |
 | **Fedora** | `angkorfetch` | `sudo dnf install angkorfetch` | **Built** | `.rpm` package in Releases; Copr repo pending |
 | **Ubuntu / Debian** | `angkorfetch` | `sudo apt install angkorfetch` | **Built** | `.deb` package in Releases; APT repo pending |
 | **Arch Linux** | `angkorfetch` | `sudo pacman -S angkorfetch` | **Planned** | PKGBUILD ready in repo; AUR package planned |
