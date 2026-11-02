@@ -53,7 +53,12 @@ case "$OS" in
                     ASSET="angkorfetch-linux-x86_64.tar.gz"
                 fi
                 ;;
-            aarch64|arm64)
+                        aarch64|arm64)
+                if [ "$IS_MUSL" = "true" ]; then
+                    error "No prebuilt binary for musl on ARM64 (e.g. Alpine)."
+                    error "Install with: cargo install angkorfetch"
+                    exit 1
+                fi
                 ASSET="angkorfetch-linux-aarch64.tar.gz"
                 ;;
             *) error "Unsupported Linux architecture: $ARCH"; exit 1 ;;
