@@ -3,9 +3,7 @@ use std::env;
 use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
-use sysinfo::{
-    CpuRefreshKind, Disks, MemoryRefreshKind, Networks, RefreshKind, System,
-};
+use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, Networks, RefreshKind, System};
 use terminal_size::{terminal_size, Width};
 
 #[cfg(windows)]
@@ -45,10 +43,45 @@ fn bytes_to_string(bytes: Vec<u8>) -> String {
             .filter(|c| c.len() == 2)
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
-        String::from_utf16_lossy(&u16)
-    } else {
-        String::from_utf8_lossy(&bytes).to_string()
+        return String::from_utf16_lossy(&u16);
     }
+    // Fast path: valid UTF-8
+    if let Ok(s) = std::str::from_utf8(&bytes) {
+        return s.to_string();
+    }
+    #[cfg(windows)]
+    {
+        extern "system" {
+            fn MultiByteToWideChar(
+                code_page: u32,
+                flags: u32,
+                lp_multi_byte_str: *const u8,
+                cb_multi_byte: i32,
+                lp_wide_char_str: *mut u16,
+                cch_wide_char: i32,
+            ) -> i32;
+        }
+        let len = bytes.len() as i32;
+        if len > 0 {
+            // Try CP_OEMCP (1) first (used by reg.exe and console utilities),
+            // then fall back to CP_ACP (0).
+            for &cp in &[1u32, 0u32] {
+                let req = unsafe {
+                    MultiByteToWideChar(cp, 0, bytes.as_ptr(), len, std::ptr::null_mut(), 0)
+                };
+                if req > 0 {
+                    let mut wide = vec![0u16; req as usize];
+                    let written = unsafe {
+                        MultiByteToWideChar(cp, 0, bytes.as_ptr(), len, wide.as_mut_ptr(), req)
+                    };
+                    if written > 0 {
+                        return String::from_utf16_lossy(&wide[..written as usize]);
+                    }
+                }
+            }
+        }
+    }
+    String::from_utf8_lossy(&bytes).to_string()
 }
 
 fn run_stdout(cmd: &str, args: &[&str]) -> Option<String> {
@@ -62,21 +95,224 @@ fn run_stdout(cmd: &str, args: &[&str]) -> Option<String> {
     if output.status.success() {
         let s = bytes_to_string(output.stdout);
         let trimmed = s.trim().to_string();
-        if trimmed.is_empty() { None } else { Some(trimmed) }
-    } else { None }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    } else {
+        None
+    }
 }
 
 fn run_powershell(script: &str) -> Option<String> {
+    // Try the inbox Windows PowerShell first, then the cross-platform pwsh.
     run_stdout("powershell", &["-NoProfile", "-Command", script])
+        .or_else(|| run_stdout("pwsh", &["-NoProfile", "-Command", script]))
+}
+
+// ── Pure parsing helper functions (testable across all platforms) ───────────
+
+fn parse_wifi_windows(out: &str) -> String {
+    let mut ssid = None;
+    let mut signal = None;
+    for line in out.lines() {
+        let t = line.trim();
+        if t.starts_with("SSID") && !t.starts_with("BSSID") {
+            if let Some((_, val)) = t.split_once(':') {
+                let v = val.trim();
+                if !v.is_empty() {
+                    ssid = Some(v.to_string());
+                }
+            }
+        } else if t.starts_with("Signal") {
+            if let Some((_, val)) = t.split_once(':') {
+                let v = val.trim();
+                if !v.is_empty() {
+                    signal = Some(v.to_string());
+                }
+            }
+        }
+    }
+    match (ssid, signal) {
+        (Some(s), Some(sig)) => format!("{} ({})", s, sig),
+        (Some(s), None) => s,
+        _ => "None".to_string(),
+    }
+}
+
+#[allow(dead_code)]
+fn parse_linux_battery(cap: &str, stat: &str, design: Option<&str>, full: Option<&str>) -> String {
+    let health = match (design, full) {
+        (Some(d), Some(f)) => {
+            let dn: f64 = d.trim().parse().unwrap_or(0.0);
+            let fv: f64 = f.trim().parse().unwrap_or(0.0);
+            if dn > 0.0 {
+                Some((fv / dn * 100.0).round() as i64)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    match health {
+        Some(h) => format!("{}% [{}] - Health {}%", cap.trim(), stat.trim(), h),
+        None => format!("{}% [{}]", cap.trim(), stat.trim()),
+    }
+}
+
+#[allow(dead_code)]
+fn parse_macos_battery(batt: Option<&str>, cycles: Option<&str>) -> String {
+    match (batt, cycles) {
+        (Some(b), Some(cy)) if !cy.trim().is_empty() => {
+            format!("{} - {} cycles", b.trim(), cy.trim())
+        }
+        (Some(b), _) => b.trim().to_string(),
+        _ => "AC (No Battery)".to_string(),
+    }
+}
+
+fn parse_disk_support_from_strings(model: &str, bus: &str) -> String {
+    let upper = format!("{} {}", model, bus).to_uppercase();
+    if upper.contains("NVME") {
+        "NVMe SSD".to_string()
+    } else if upper.contains("SSD") {
+        "SATA SSD".to_string()
+    } else if upper.contains("HDD") {
+        "HDD".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+fn parse_ports(usb: u32, video: u32, audio: u32) -> String {
+    let mut parts = Vec::new();
+    if usb > 0 {
+        parts.push(format!("USB x{}", usb));
+    }
+    if video > 0 {
+        parts.push(format!("Video Out x{}", video));
+    }
+    if audio > 0 {
+        parts.push(format!("Audio x{}", audio));
+    }
+    if parts.is_empty() {
+        "Unknown".to_string()
+    } else {
+        parts.join(", ")
+    }
+}
+
+#[allow(dead_code)]
+fn parse_package_count(output: &str, skip: usize) -> usize {
+    output
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .count()
+        .saturating_sub(skip)
+}
+
+#[allow(dead_code)]
+fn validate_version_tag(tag: &str, cargo_version: &str) -> bool {
+    let tag_clean = tag.strip_prefix('v').unwrap_or(tag);
+    tag_clean == cargo_version
+}
+
+#[cfg(windows)]
+#[derive(Default, Debug)]
+struct WindowsHwData {
+    serial: Option<String>,
+    ram_type: Option<String>,
+    ram_speed: Option<u32>,
+    ram_vendor: Option<String>,
+    disk_model: Option<String>,
+    disk_bus: Option<String>,
+    usb: u32,
+    video: u32,
+    audio: u32,
+    bat_static: Option<f64>,
+    bat_full: Option<f64>,
+}
+
+#[cfg(windows)]
+impl WindowsHwData {
+    fn fetch() -> Self {
+        let script = "& { \
+            $b = (Get-CimInstance Win32_BIOS).SerialNumber; \
+            $m = Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1; \
+            $d = Get-CimInstance Win32_DiskDrive | Select-Object -First 1; \
+            $u = @(Get-CimInstance Win32_USBControllerDevice).Count; \
+            $v = @(Get-CimInstance Win32_VideoController).Count; \
+            $a = @(Get-CimInstance Win32_SoundDevice).Count; \
+            $bs = (Get-CimInstance -Namespace root\\wmi -ClassName BatteryStaticData -ErrorAction SilentlyContinue | Select-Object -First 1).DesignedCapacity; \
+            $bf = (Get-CimInstance -Namespace root\\wmi -ClassName BatteryFullChargedCapacity -ErrorAction SilentlyContinue | Select-Object -First 1).FullChargedCapacity; \
+            'Serial=' + $b; \
+            'RamType=' + $m.SMBIOSMemoryType; \
+            'RamSpeed=' + $m.Speed; \
+            'RamVendor=' + $m.Manufacturer; \
+            'DiskModel=' + $d.Model; \
+            'DiskBus=' + $d.InterfaceType; \
+            'Usb=' + $u; \
+            'Video=' + $v; \
+            'Audio=' + $a; \
+            'BatStatic=' + $bs; \
+            'BatFull=' + $bf \
+        }";
+        let mut data = Self::default();
+        if let Some(out) = run_powershell(script) {
+            for line in out.lines() {
+                if let Some((k, v)) = line.split_once('=') {
+                    let val = v.trim();
+                    if val.is_empty() {
+                        continue;
+                    }
+                    match k.trim() {
+                        "Serial" => data.serial = Some(val.to_string()),
+                        "RamType" => {
+                            data.ram_type = Some(match val {
+                                "20" => "DDR".to_string(),
+                                "21" => "DDR2".to_string(),
+                                "24" => "DDR3".to_string(),
+                                "26" => "DDR4".to_string(),
+                                "34" => "DDR5".to_string(),
+                                other => format!("Unknown ({})", other),
+                            });
+                        }
+                        "RamSpeed" => data.ram_speed = val.parse().ok(),
+                        "RamVendor" => {
+                            if val != "Unknown" {
+                                data.ram_vendor = Some(val.to_string());
+                            }
+                        }
+                        "DiskModel" => data.disk_model = Some(val.to_string()),
+                        "DiskBus" => data.disk_bus = Some(val.to_string()),
+                        "Usb" => data.usb = val.parse().unwrap_or(0),
+                        "Video" => data.video = val.parse().unwrap_or(0),
+                        "Audio" => data.audio = val.parse().unwrap_or(0),
+                        "BatStatic" => data.bat_static = val.parse().ok(),
+                        "BatFull" => data.bat_full = val.parse().ok(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        data
+    }
 }
 
 fn reg_val(key: &str, name: &str) -> Option<String> {
-    run_stdout("reg", &["query", key, "/v", name]).and_then(|s| {
-        s.lines().last().and_then(|line| {
-            let parts: Vec<&str> = line.split("REG_SZ").collect();
-            if parts.len() >= 2 { Some(parts[1].trim().to_string()) } else { None }
+    run_stdout("reg", &["query", key, "/v", name])
+        .and_then(|s| {
+            s.lines().last().and_then(|line| {
+                let parts: Vec<&str> = line.split("REG_SZ").collect();
+                if parts.len() >= 2 {
+                    Some(parts[1].trim().to_string())
+                } else {
+                    None
+                }
+            })
         })
-    }).filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty())
 }
 
 fn print_help(prog: &str) {
@@ -107,7 +343,8 @@ fn get_os_name(arch: &str) -> String {
         let build = reg_val(
             r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
             "DisplayVersion",
-        ).unwrap_or_default();
+        )
+        .unwrap_or_default();
         if build.is_empty() {
             format!("{} [{}]", os, arch)
         } else {
@@ -127,14 +364,31 @@ fn get_host() -> String {
 
 fn get_model() -> String {
     if cfg!(target_os = "windows") {
-        let manu = reg_val(r"HKLM\HARDWARE\DESCRIPTION\System\BIOS", "SystemManufacturer").unwrap_or_default();
-        let prod = reg_val(r"HKLM\HARDWARE\DESCRIPTION\System\BIOS", "SystemProductName").unwrap_or_default();
-        if manu.is_empty() && prod.is_empty() { String::new() } else { format!("{} {}", manu, prod).trim().to_string() }
+        let manu = reg_val(
+            r"HKLM\HARDWARE\DESCRIPTION\System\BIOS",
+            "SystemManufacturer",
+        )
+        .unwrap_or_default();
+        let prod = reg_val(
+            r"HKLM\HARDWARE\DESCRIPTION\System\BIOS",
+            "SystemProductName",
+        )
+        .unwrap_or_default();
+        if manu.is_empty() && prod.is_empty() {
+            String::new()
+        } else {
+            format!("{} {}", manu, prod).trim().to_string()
+        }
     } else if cfg!(target_os = "linux") {
-        std::fs::read_to_string("/sys/class/dmi/id/product_name").ok().map(|s| s.trim().to_string()).unwrap_or_default()
+        std::fs::read_to_string("/sys/class/dmi/id/product_name")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
     } else if cfg!(target_os = "macos") {
         run_stdout("sysctl", &["-n", "hw.model"]).unwrap_or_default()
-    } else { String::new() }
+    } else {
+        String::new()
+    }
 }
 
 fn get_serial() -> String {
@@ -142,7 +396,8 @@ fn get_serial() -> String {
         run_powershell("(Get-CimInstance Win32_BIOS).SerialNumber")
             .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "linux") {
-        std::fs::read_to_string("/sys/class/dmi/id/product_serial").ok()
+        std::fs::read_to_string("/sys/class/dmi/id/product_serial")
+            .ok()
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "macos") {
@@ -160,14 +415,26 @@ fn get_motherboard() -> String {
         let manu = reg_val(key, "BaseBoardManufacturer").unwrap_or_default();
         let prod = reg_val(key, "BaseBoardProduct").unwrap_or_default();
         let combined = format!("{} {}", manu, prod).trim().to_string();
-        if combined.is_empty() { "Unknown".to_string() } else { combined }
+        if combined.is_empty() {
+            "Unknown".to_string()
+        } else {
+            combined
+        }
     } else if cfg!(target_os = "linux") {
         let vendor = std::fs::read_to_string("/sys/class/dmi/id/board_vendor")
-            .ok().map(|s| s.trim().to_string()).unwrap_or_default();
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let name = std::fs::read_to_string("/sys/class/dmi/id/board_name")
-            .ok().map(|s| s.trim().to_string()).unwrap_or_default();
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let combined = format!("{} {}", vendor, name).trim().to_string();
-        if combined.is_empty() { "Unknown".to_string() } else { combined }
+        if combined.is_empty() {
+            "Unknown".to_string()
+        } else {
+            combined
+        }
     } else if cfg!(target_os = "macos") {
         run_stdout("sysctl", &["-n", "hw.model"])
             .map(|m| format!("Apple {}", m))
@@ -183,14 +450,26 @@ fn get_bios() -> String {
         let vendor = reg_val(key, "BIOSVendor").unwrap_or_default();
         let version = reg_val(key, "BIOSVersion").unwrap_or_default();
         let combined = format!("{} {}", vendor, version).trim().to_string();
-        if combined.is_empty() { "Unknown".to_string() } else { combined }
+        if combined.is_empty() {
+            "Unknown".to_string()
+        } else {
+            combined
+        }
     } else if cfg!(target_os = "linux") {
         let vendor = std::fs::read_to_string("/sys/class/dmi/id/bios_vendor")
-            .ok().map(|s| s.trim().to_string()).unwrap_or_default();
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let version = std::fs::read_to_string("/sys/class/dmi/id/bios_version")
-            .ok().map(|s| s.trim().to_string()).unwrap_or_default();
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let combined = format!("{} {}", vendor, version).trim().to_string();
-        if combined.is_empty() { "Unknown".to_string() } else { combined }
+        if combined.is_empty() {
+            "Unknown".to_string()
+        } else {
+            combined
+        }
     } else {
         "Unknown".to_string()
     }
@@ -202,8 +481,12 @@ fn get_uptime() -> String {
     let h = (secs % 86400) / 3600;
     let m = (secs % 3600) / 60;
     let mut parts = Vec::new();
-    if d > 0 { parts.push(format!("{}d", d)); }
-    if h > 0 { parts.push(format!("{}h", h)); }
+    if d > 0 {
+        parts.push(format!("{}d", d));
+    }
+    if h > 0 {
+        parts.push(format!("{}h", h));
+    }
     parts.push(format!("{}m", m));
     parts.join(" ")
 }
@@ -218,7 +501,9 @@ fn fmt_cpu_brand(model: &str) -> String {
 
 fn get_cpu_info(sys: &System) -> String {
     let cpus = sys.cpus();
-    if cpus.is_empty() { return "Unknown".to_string(); }
+    if cpus.is_empty() {
+        return "Unknown".to_string();
+    }
     let model = fmt_cpu_brand(cpus[0].brand().trim());
     let freq = cpus[0].frequency() as f64 / 1000.0;
     format!("{} ({} cores) @ {:.2} GHz", model, cpus.len(), freq)
@@ -226,17 +511,29 @@ fn get_cpu_info(sys: &System) -> String {
 
 fn get_gpu() -> String {
     if cfg!(target_os = "windows") {
-        if let Some(name) = reg_val(
-            r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000",
-            "DriverDesc",
-        ) {
-            return name;
+        // Enumerate all subkeys of the display class (0000, 0001, ...)
+        // and return the first one that has a DriverDesc value.
+        let class_key =
+            r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
+        if let Some(out) = run_stdout("reg", &["query", class_key]) {
+            let mut gpu_names: Vec<String> = out
+                .lines()
+                .filter(|l| l.starts_with("HKEY_"))
+                .filter_map(|subkey| reg_val(subkey.trim(), "DriverDesc"))
+                .collect();
+            gpu_names.dedup();
+            if !gpu_names.is_empty() {
+                return gpu_names.join(" / ");
+            }
         }
         "Unknown".to_string()
     } else if cfg!(target_os = "linux") {
-        run_stdout("sh", &["-c", "lspci | grep -i 'vga\\|3d' | head -1 | cut -d: -f3-"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Unknown".to_string())
+        run_stdout(
+            "sh",
+            &["-c", "lspci | grep -i 'vga\\|3d' | head -1 | cut -d: -f3-"],
+        )
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "macos") {
         run_stdout("sh", &["-c", "system_profiler SPDisplaysDataType 2>/dev/null | grep 'Chipset Model' | head -1 | cut -d: -f2"])
             .map(|s| s.trim().to_string())
@@ -249,7 +546,10 @@ fn get_gpu() -> String {
 fn get_gpu_usage() -> String {
     if let Some(out) = run_stdout(
         "nvidia-smi",
-        &["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+        &[
+            "--query-gpu=utilization.gpu",
+            "--format=csv,noheader,nounits",
+        ],
     ) {
         if let Some(first) = out.lines().next() {
             if let Ok(n) = first.trim().parse::<u32>() {
@@ -258,14 +558,20 @@ fn get_gpu_usage() -> String {
         }
     }
     if cfg!(target_os = "linux") {
-        for path in &[
-            "/sys/class/drm/card0/device/gpu_busy_percent",
-            "/sys/class/drm/card1/device/gpu_busy_percent",
-        ] {
-            if let Ok(s) = std::fs::read_to_string(path) {
-                let t = s.trim();
-                if !t.is_empty() {
-                    return format!("{}%", t);
+        // Scan all DRM card entries; avoids hardcoding card0/card1.
+        if let Ok(entries) = std::fs::read_dir("/sys/class/drm") {
+            let mut cards: Vec<_> = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_name().to_string_lossy().starts_with("card"))
+                .collect();
+            cards.sort_by_key(|e| e.file_name());
+            for entry in cards {
+                let p = entry.path().join("device/gpu_busy_percent");
+                if let Ok(s) = std::fs::read_to_string(&p) {
+                    let t = s.trim();
+                    if !t.is_empty() {
+                        return format!("{}%", t);
+                    }
                 }
             }
         }
@@ -276,7 +582,11 @@ fn get_gpu_usage() -> String {
 fn get_memory(sys: &System) -> String {
     let total = sys.total_memory() as f64 / 1_073_741_824.0;
     let used = sys.used_memory() as f64 / 1_073_741_824.0;
-    let pct = if total > 0.0 { (used / total) * 100.0 } else { 0.0 };
+    let pct = if total > 0.0 {
+        (used / total) * 100.0
+    } else {
+        0.0
+    };
     format!("{:.1} GiB / {:.1} GiB ({:.0}%)", used, total, pct)
 }
 
@@ -285,9 +595,15 @@ fn get_ram_type() -> String {
         run_powershell("$t=(Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).SMBIOSMemoryType; switch($t){20{'DDR'}21{'DDR2'}24{'DDR3'}26{'DDR4'}34{'DDR5'}default{\"Unknown ($t)\"}}")
             .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "linux") {
-        run_stdout("sh", &["-c", "dmidecode -t memory 2>/dev/null | grep 'Type:' | head -1 | cut -d: -f2"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Unknown".to_string())
+        run_stdout(
+            "sh",
+            &[
+                "-c",
+                "dmidecode -t memory 2>/dev/null | grep 'Type:' | head -1 | cut -d: -f2",
+            ],
+        )
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "macos") {
         run_stdout("sh", &["-c", "system_profiler SPMemoryDataType 2>/dev/null | grep 'Type:' | head -1 | cut -d: -f2"])
             .map(|s| s.trim().to_string())
@@ -310,7 +626,10 @@ fn get_ram_speed_mhz() -> Option<u32> {
     } else if cfg!(target_os = "macos") {
         run_stdout(
             "sh",
-            &["-c", "system_profiler SPMemoryDataType 2>/dev/null | grep -m1 Speed | grep -oE '[0-9]+'"],
+            &[
+                "-c",
+                "system_profiler SPMemoryDataType 2>/dev/null | grep -m1 Speed | grep -oE '[0-9]+'",
+            ],
         )
         .and_then(|s| s.trim().parse::<u32>().ok())
     } else {
@@ -320,10 +639,12 @@ fn get_ram_speed_mhz() -> Option<u32> {
 
 fn get_ram_manufacturer() -> String {
     if cfg!(target_os = "windows") {
-        run_powershell("(Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).Manufacturer")
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty() && s != "Unknown")
-            .unwrap_or_default()
+        run_powershell(
+            "(Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1).Manufacturer",
+        )
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && s != "Unknown")
+        .unwrap_or_default()
     } else if cfg!(target_os = "linux") {
         run_stdout(
             "sh",
@@ -345,6 +666,7 @@ fn get_ram_manufacturer() -> String {
     }
 }
 
+#[allow(dead_code)]
 /// Combines RAM type, speed and (when available) manufacturer into one
 /// readable line, e.g. "DDR4 @ 3200 MHz (Corsair)".
 fn get_ram_details() -> String {
@@ -371,7 +693,11 @@ fn get_disk() -> String {
     let used = total - avail;
     let total_gb = total as f64 / 1_000_000_000.0;
     let used_gb = used as f64 / 1_000_000_000.0;
-    let pct = if total > 0 { (used as f64 / total as f64) * 100.0 } else { 0.0 };
+    let pct = if total > 0 {
+        (used as f64 / total as f64) * 100.0
+    } else {
+        0.0
+    };
     format!("{:.1} GiB / {:.1} GiB ({:.0}%)", used_gb, total_gb, pct)
 }
 
@@ -412,8 +738,13 @@ fn get_disk_model() -> String {
 /// Storage medium classification (NVMe SSD / SATA SSD / HDD).
 fn get_disk_support() -> String {
     if cfg!(target_os = "windows") {
-        let model = run_powershell("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).Model").unwrap_or_default();
-        let bus = run_powershell("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).InterfaceType").unwrap_or_default();
+        let model =
+            run_powershell("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).Model")
+                .unwrap_or_default();
+        let bus = run_powershell(
+            "(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).InterfaceType",
+        )
+        .unwrap_or_default();
         let upper = format!("{} {}", model, bus).to_uppercase();
         if upper.contains("NVME") {
             "NVMe SSD".to_string()
@@ -461,18 +792,24 @@ fn get_display() -> String {
         {
             unsafe {
                 let hdc = GetDC(std::ptr::null());
-                if hdc.is_null() { return "Unknown".to_string(); }
+                if hdc.is_null() {
+                    return "Unknown".to_string();
+                }
                 let w = GetDeviceCaps(hdc, 8);
                 let h = GetDeviceCaps(hdc, 10);
                 let r = GetDeviceCaps(hdc, 116);
                 ReleaseDC(std::ptr::null(), hdc);
                 if w > 0 && h > 0 {
                     format!("{}x{} @ {}Hz", w, h, if r > 0 { r } else { 60 })
-                } else { "Unknown".to_string() }
+                } else {
+                    "Unknown".to_string()
+                }
             }
         }
         #[cfg(not(windows))]
-        { "Unknown".to_string() }
+        {
+            "Unknown".to_string()
+        }
     } else if cfg!(target_os = "linux") {
         // Pick the mode line marked with '*' (the currently active mode),
         // which carries both the resolution and the true refresh rate.
@@ -495,16 +832,37 @@ fn get_display() -> String {
             }
         })
         .or_else(|| {
+            // Fallback 1: awk on xrandr connected line (BusyBox-safe, no grep -oP)
             run_stdout(
                 "sh",
-                &["-c", "xrandr 2>/dev/null | grep ' connected' | head -1 | grep -oP '\\d{3,4}x\\d{3,4}'"],
+                &["-c", "xrandr 2>/dev/null | awk '/ connected/{match($0,/[0-9]+x[0-9]+/); print substr($0,RSTART,RLENGTH); exit}'"],
+            )
+        })
+        .or_else(|| {
+            // Fallback 2: wlr-randr for native Wayland compositors
+            run_stdout(
+                "sh",
+                &["-c", "wlr-randr 2>/dev/null | awk '/Enabled: yes/{found=1} found && /\\\"/{match($0,/[0-9]+x[0-9]+/); if(RLENGTH>0){print substr($0,RSTART,RLENGTH); exit}}'"],
+            )
+        })
+        .or_else(|| {
+            // Fallback 3: /sys/class/drm/*/modes (kernel DRM, works without X/Wayland)
+            run_stdout(
+                "sh",
+                &["-c", "for f in /sys/class/drm/*/modes; do [ -s \"$f\" ] && awk 'NR==1{print; exit}' \"$f\" && break; done 2>/dev/null"],
             )
         })
         .unwrap_or_else(|| "Unknown".to_string())
     } else if cfg!(target_os = "macos") {
-        run_stdout("sh", &["-c", "system_profiler SPDisplaysDataType 2>/dev/null | grep Resolution | head -1"])
-            .map(|s| s.replace("Resolution:", "").trim().to_string())
-            .unwrap_or_else(|| "Unknown".to_string())
+        run_stdout(
+            "sh",
+            &[
+                "-c",
+                "system_profiler SPDisplaysDataType 2>/dev/null | grep Resolution | head -1",
+            ],
+        )
+        .map(|s| s.replace("Resolution:", "").trim().to_string())
+        .unwrap_or_else(|| "Unknown".to_string())
     } else {
         "Unknown".to_string()
     }
@@ -512,18 +870,41 @@ fn get_display() -> String {
 
 fn get_ports() -> String {
     if cfg!(target_os = "windows") {
-        let usb = run_powershell("@(Get-CimInstance Win32_USBControllerDevice).Count").unwrap_or_default();
-        let video = run_powershell("@(Get-CimInstance Win32_VideoController).Count").unwrap_or_default();
-        let audio = run_powershell("@(Get-CimInstance Win32_SoundDevice).Count").unwrap_or_default();
+        let usb = run_powershell("@(Get-CimInstance Win32_USBControllerDevice).Count")
+            .unwrap_or_default();
+        let video =
+            run_powershell("@(Get-CimInstance Win32_VideoController).Count").unwrap_or_default();
+        let audio =
+            run_powershell("@(Get-CimInstance Win32_SoundDevice).Count").unwrap_or_default();
         let mut parts = Vec::new();
-        if let Ok(n) = usb.trim().parse::<u32>() { if n > 0 { parts.push(format!("USB x{}", n)); } }
-        if let Ok(n) = video.trim().parse::<u32>() { if n > 0 { parts.push(format!("Video Out x{}", n)); } }
-        if let Ok(n) = audio.trim().parse::<u32>() { if n > 0 { parts.push(format!("Audio x{}", n)); } }
-        if parts.is_empty() { "Unknown".to_string() } else { parts.join(", ") }
+        if let Ok(n) = usb.trim().parse::<u32>() {
+            if n > 0 {
+                parts.push(format!("USB x{}", n));
+            }
+        }
+        if let Ok(n) = video.trim().parse::<u32>() {
+            if n > 0 {
+                parts.push(format!("Video Out x{}", n));
+            }
+        }
+        if let Ok(n) = audio.trim().parse::<u32>() {
+            if n > 0 {
+                parts.push(format!("Audio x{}", n));
+            }
+        }
+        if parts.is_empty() {
+            "Unknown".to_string()
+        } else {
+            parts.join(", ")
+        }
     } else if cfg!(target_os = "linux") {
         let mut parts = Vec::new();
         if let Some(out) = run_stdout("sh", &["-c", "lsusb 2>/dev/null | wc -l"]) {
-            if let Ok(n) = out.trim().parse::<u32>() { if n > 0 { parts.push(format!("USB x{}", n)); } }
+            if let Ok(n) = out.trim().parse::<u32>() {
+                if n > 0 {
+                    parts.push(format!("USB x{}", n));
+                }
+            }
         }
         if let Some(out) = run_stdout(
             "sh",
@@ -534,16 +915,42 @@ fn get_ports() -> String {
         if run_stdout("sh", &["-c", "lspci 2>/dev/null | grep -i audio | head -1"]).is_some() {
             parts.push("Audio".to_string());
         }
-        if parts.is_empty() { "Unknown".to_string() } else { parts.join(", ") }
+        if parts.is_empty() {
+            "Unknown".to_string()
+        } else {
+            parts.join(", ")
+        }
     } else if cfg!(target_os = "macos") {
         let mut parts = Vec::new();
-        if let Some(out) = run_stdout("sh", &["-c", "system_profiler SPUSBDataType 2>/dev/null | grep -c 'Product ID'"]) {
-            if let Ok(n) = out.trim().parse::<u32>() { if n > 0 { parts.push(format!("USB x{}", n)); } }
+        if let Some(out) = run_stdout(
+            "sh",
+            &[
+                "-c",
+                "system_profiler SPUSBDataType 2>/dev/null | grep -c 'Product ID'",
+            ],
+        ) {
+            if let Ok(n) = out.trim().parse::<u32>() {
+                if n > 0 {
+                    parts.push(format!("USB x{}", n));
+                }
+            }
         }
-        if run_stdout("sh", &["-c", "system_profiler SPAudioDataType 2>/dev/null | head -1"]).is_some() {
+        if run_stdout(
+            "sh",
+            &[
+                "-c",
+                "system_profiler SPAudioDataType 2>/dev/null | head -1",
+            ],
+        )
+        .is_some()
+        {
             parts.push("Audio".to_string());
         }
-        if parts.is_empty() { "Unknown".to_string() } else { parts.join(", ") }
+        if parts.is_empty() {
+            "Unknown".to_string()
+        } else {
+            parts.join(", ")
+        }
     } else {
         "Unknown".to_string()
     }
@@ -551,20 +958,10 @@ fn get_ports() -> String {
 
 fn get_wifi() -> String {
     if cfg!(target_os = "windows") {
-        let ssid = run_powershell(
-            "(netsh wlan show interfaces | Select-String '^\\s+SSID\\s+:' | Select-Object -First 1) -replace '.*:\\s+'",
-        )
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-        let signal = run_powershell(
-            "(netsh wlan show interfaces | Select-String '^\\s+Signal\\s+:' | Select-Object -First 1) -replace '.*:\\s+'",
-        )
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-        match (ssid, signal) {
-            (Some(s), Some(sig)) => format!("{} ({})", s, sig),
-            (Some(s), None) => s,
-            _ => "None".to_string(),
+        if let Some(out) = run_stdout("netsh", &["wlan", "show", "interfaces"]) {
+            parse_wifi_windows(&out)
+        } else {
+            "None".to_string()
         }
     } else if cfg!(target_os = "linux") {
         let ssid = run_stdout("sh", &["-c", "iwgetid -r 2>/dev/null"]).filter(|s| !s.is_empty());
@@ -626,21 +1023,26 @@ fn get_shell() -> String {
 
 fn get_terminal() -> String {
     if cfg!(target_os = "windows") {
-        env::var("WT_SESSION").ok().map(|_| "Windows Terminal".to_string())
+        env::var("WT_SESSION")
+            .ok()
+            .map(|_| "Windows Terminal".to_string())
             .or_else(|| env::var("TERM_PROGRAM").ok())
             .or_else(|| Some(env::var("TERM").unwrap_or_else(|_| "console".to_string())))
             .unwrap_or_else(|| "console".to_string())
     } else {
-        env::var("TERM_PROGRAM").ok()
+        env::var("TERM_PROGRAM")
+            .ok()
             .or_else(|| env::var("TERM").ok())
             .unwrap_or_else(|| "Unknown".to_string())
     }
 }
 
 fn get_de() -> String {
-    if cfg!(target_os = "windows") { "Windows Explorer".to_string() }
-    else if cfg!(target_os = "macos") { "Aqua".to_string() }
-    else {
+    if cfg!(target_os = "windows") {
+        "Windows Explorer".to_string()
+    } else if cfg!(target_os = "macos") {
+        "Aqua".to_string()
+    } else {
         env::var("XDG_CURRENT_DESKTOP")
             .or_else(|_| env::var("DESKTOP_SESSION"))
             .or_else(|_| env::var("GDMSESSION"))
@@ -654,48 +1056,123 @@ fn get_packages() -> String {
     if cfg!(target_os = "windows") {
         if let Some(out) = run_stdout("winget", &["list"]) {
             let n = out.lines().count().saturating_sub(2);
-            if n > 0 { parts.push(format!("{}(winget)", n)); }
+            if n > 0 {
+                parts.push(format!("{}(winget)", n));
+            }
         }
         if let Some(out) = run_stdout("npm", &["list", "-g", "--depth=0"]) {
             let n = out.lines().count().saturating_sub(1);
-            if n > 0 { parts.push(format!("{}(npm)", n)); }
+            if n > 0 {
+                parts.push(format!("{}(npm)", n));
+            }
         }
         if let Some(out) = run_stdout(
             "reg",
-            &["query", r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall"],
+            &[
+                "query",
+                r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+            ],
         ) {
             let n = out.lines().filter(|l| l.starts_with("HKEY_")).count();
-            if n > 0 { parts.push(format!("{}(apps)", n)); }
+            if n > 0 {
+                parts.push(format!("{}(apps)", n));
+            }
         }
     } else if cfg!(target_os = "linux") {
-        for &(cmd, args, label) in &[
-            ("dpkg", &["--list"] as &[&str], "dpkg"),
-            ("rpm", &["-qa"], "rpm"),
-            ("pacman", &["-Q"], "pacman"),
-            ("apk", &["info"], "apk"),
-            ("flatpak", &["list"], "flatpak"),
-            ("snap", &["list"], "snap"),
-            ("npm", &["list", "-g", "--depth=0"], "npm"),
-        ] {
-            if let Some(out) = run_stdout(cmd, args) {
-                let n = if label == "npm" { out.lines().count().saturating_sub(1) } else { out.lines().count() };
-                if n > 0 { parts.push(format!("{}({})", n, label)); }
+        // Run only package managers that are actually installed; count accurately.
+        // dpkg-query: no header lines, one '.' per package.
+        // snap list: first line is a header.
+        // npm list: first line is the tree root; apply a per-command timeout.
+        use std::process::Command;
+        struct PkgCmd {
+            cmd: &'static str,
+            args: &'static [&'static str],
+            label: &'static str,
+            skip: usize,
+        }
+        let pkg_cmds = [
+            PkgCmd {
+                cmd: "dpkg-query",
+                args: &["-f", ".\n", "-W"],
+                label: "dpkg",
+                skip: 0,
+            },
+            PkgCmd {
+                cmd: "rpm",
+                args: &["-qa"],
+                label: "rpm",
+                skip: 0,
+            },
+            PkgCmd {
+                cmd: "pacman",
+                args: &["-Q"],
+                label: "pacman",
+                skip: 0,
+            },
+            PkgCmd {
+                cmd: "apk",
+                args: &["info"],
+                label: "apk",
+                skip: 0,
+            },
+            PkgCmd {
+                cmd: "flatpak",
+                args: &["list"],
+                label: "flatpak",
+                skip: 0,
+            },
+            PkgCmd {
+                cmd: "snap",
+                args: &["list"],
+                label: "snap",
+                skip: 1,
+            },
+            PkgCmd {
+                cmd: "npm",
+                args: &["list", "-g", "--depth=0"],
+                label: "npm",
+                skip: 1,
+            },
+        ];
+        for pc in &pkg_cmds {
+            // Skip commands not on PATH to avoid slow "not found" delays
+            if Command::new("sh")
+                .args(["-c", &format!("command -v {} >/dev/null 2>&1", pc.cmd)])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+            {
+                if let Some(out) = run_stdout(pc.cmd, pc.args) {
+                    let n = out.lines().count().saturating_sub(pc.skip);
+                    if n > 0 {
+                        parts.push(format!("{}({})", n, pc.label));
+                    }
+                }
             }
         }
     } else if cfg!(target_os = "macos") {
         for path in &["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
             if let Some(out) = run_stdout(path, &["list"]) {
                 let n = out.lines().count();
-                if n > 0 { parts.push(format!("{}(brew)", n)); break; }
+                if n > 0 {
+                    parts.push(format!("{}(brew)", n));
+                    break;
+                }
             }
         }
         if let Some(out) = run_stdout("npm", &["list", "-g", "--depth=0"]) {
             let n = out.lines().count().saturating_sub(1);
-            if n > 0 { parts.push(format!("{}(npm)", n)); }
+            if n > 0 {
+                parts.push(format!("{}(npm)", n));
+            }
         }
     }
 
-    if parts.is_empty() { "None".to_string() } else { parts.join(", ") }
+    if parts.is_empty() {
+        "None".to_string()
+    } else {
+        parts.join(", ")
+    }
 }
 
 fn get_battery() -> String {
@@ -712,7 +1189,11 @@ fn get_battery() -> String {
                 }
             }
             if bat_pct > 0 || bat_ac != 1 {
-                let s = match bat_ac { 0 => "Discharging", 1 => "AC", _ => "Unknown" };
+                let s = match bat_ac {
+                    0 => "Discharging",
+                    1 => "AC",
+                    _ => "Unknown",
+                };
                 let health = run_powershell(
                     "$d=(Get-CimInstance -Namespace root\\wmi -ClassName BatteryStaticData -ErrorAction SilentlyContinue | Select-Object -First 1).DesignedCapacity; \
                      $f=(Get-CimInstance -Namespace root\\wmi -ClassName BatteryFullChargedCapacity -ErrorAction SilentlyContinue | Select-Object -First 1).FullChargedCapacity; \
@@ -728,45 +1209,56 @@ fn get_battery() -> String {
             }
         }
         #[cfg(not(windows))]
-        { "AC".to_string() }
+        {
+            "AC".to_string()
+        }
     } else if cfg!(target_os = "linux") {
-        match (
-            std::fs::read_to_string("/sys/class/power_supply/BAT0/capacity").ok(),
-            std::fs::read_to_string("/sys/class/power_supply/BAT0/status").ok(),
-        ) {
-            (Some(c), Some(s)) => {
-                let design = std::fs::read_to_string("/sys/class/power_supply/BAT0/energy_full_design")
-                    .or_else(|_| std::fs::read_to_string("/sys/class/power_supply/BAT0/charge_full_design"))
-                    .ok();
-                let full = std::fs::read_to_string("/sys/class/power_supply/BAT0/energy_full")
-                    .or_else(|_| std::fs::read_to_string("/sys/class/power_supply/BAT0/charge_full"))
-                    .ok();
-                let health = match (design, full) {
-                    (Some(d), Some(f)) => {
-                        let dn: f64 = d.trim().parse().unwrap_or(0.0);
-                        let fv: f64 = f.trim().parse().unwrap_or(0.0);
-                        if dn > 0.0 { Some((fv / dn * 100.0).round() as i64) } else { None }
-                    }
-                    _ => None,
-                };
-                match health {
-                    Some(h) => format!("{}% [{}] - Health {}%", c.trim(), s.trim(), h),
-                    None => format!("{}% [{}]", c.trim(), s.trim()),
+        // Scan all power_supply entries for a battery (type == "Battery")
+        // instead of assuming BAT0. Handles BAT1, macsmc-battery, etc.
+        let bat_dir = std::fs::read_dir("/sys/class/power_supply")
+            .ok()
+            .and_then(|entries| {
+                entries.filter_map(|e| e.ok()).find(|e| {
+                    let mut p = e.path();
+                    p.push("type");
+                    std::fs::read_to_string(&p)
+                        .map(|t| t.trim().eq_ignore_ascii_case("Battery"))
+                        .unwrap_or(false)
+                })
+            })
+            .map(|e| e.path());
+
+        if let Some(base) = bat_dir {
+            let cap = std::fs::read_to_string(base.join("capacity")).ok();
+            let stat = std::fs::read_to_string(base.join("status")).ok();
+            match (cap, stat) {
+                (Some(c), Some(s)) => {
+                    let design = std::fs::read_to_string(base.join("energy_full_design"))
+                        .or_else(|_| std::fs::read_to_string(base.join("charge_full_design")))
+                        .ok();
+                    let full = std::fs::read_to_string(base.join("energy_full"))
+                        .or_else(|_| std::fs::read_to_string(base.join("charge_full")))
+                        .ok();
+                    parse_linux_battery(&c, &s, design.as_deref(), full.as_deref())
                 }
+                _ => "AC (No Battery)".to_string(),
             }
-            _ => "AC (No Battery)".to_string(),
+        } else {
+            "AC (No Battery)".to_string()
         }
     } else if cfg!(target_os = "macos") {
-        let batt = run_stdout("sh", &["-c", "pmset -g batt 2>/dev/null | tail -1"]).filter(|s| s.contains("%"));
+        let batt = run_stdout("sh", &["-c", "pmset -g batt 2>/dev/null | tail -1"])
+            .filter(|s| s.contains("%"));
+        // Use -rn AppleSmartBattery -w0 and parse the exact "CycleCount" key to
+        // avoid matching other numeric values in ioreg -l output.
         let cycles = run_stdout(
             "sh",
-            &["-c", "ioreg -l 2>/dev/null | grep -i CycleCount | head -1 | grep -oE '[0-9]+'"],
+            &[
+                "-c",
+                r#"ioreg -rn AppleSmartBattery -w0 2>/dev/null | awk -F'"' '/"CycleCount"/{print $4; exit}'"#,
+            ],
         );
-        match (batt, cycles) {
-            (Some(b), Some(cy)) => format!("{} - {} cycles", b, cy),
-            (Some(b), None) => b,
-            _ => "AC (No Battery)".to_string(),
-        }
+        parse_macos_battery(batt.as_deref(), cycles.as_deref())
     } else {
         "AC".to_string()
     }
@@ -898,18 +1390,30 @@ fn gradient_anchors() -> ((u8, u8, u8), (u8, u8, u8)) {
 fn logo_gradient() -> [Color; 6] {
     if cfg!(target_os = "windows") {
         [
-            Color::BrightGreen, Color::BrightGreen, Color::BrightCyan,
-            Color::BrightCyan, Color::Cyan, Color::Cyan,
+            Color::BrightGreen,
+            Color::BrightGreen,
+            Color::BrightCyan,
+            Color::BrightCyan,
+            Color::Cyan,
+            Color::Cyan,
         ]
     } else if cfg!(target_os = "macos") {
         [
-            Color::BrightWhite, Color::BrightWhite, Color::White,
-            Color::BrightCyan, Color::Cyan, Color::Cyan,
+            Color::BrightWhite,
+            Color::BrightWhite,
+            Color::White,
+            Color::BrightCyan,
+            Color::Cyan,
+            Color::Cyan,
         ]
     } else {
         [
-            Color::BrightYellow, Color::BrightYellow, Color::Yellow,
-            Color::BrightRed, Color::Red, Color::Magenta,
+            Color::BrightYellow,
+            Color::BrightYellow,
+            Color::Yellow,
+            Color::BrightRed,
+            Color::Red,
+            Color::Magenta,
         ]
     }
 }
@@ -921,7 +1425,9 @@ fn accent_color() -> Color {
 /// Conservative 24-bit color detection: only terminals known to support
 /// truecolor opt in, everything else falls back to the 16-color ramp.
 fn supports_truecolor() -> bool {
-    let colorterm = env::var("COLORTERM").unwrap_or_default().to_ascii_lowercase();
+    let colorterm = env::var("COLORTERM")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     if colorterm.contains("truecolor") || colorterm.contains("24bit") {
         return true;
     }
@@ -945,7 +1451,11 @@ fn logo_row_color(row: usize, rows: usize, truecolor: bool) -> Color {
     let span = rows.saturating_sub(1);
     if truecolor {
         let (from, to) = gradient_anchors();
-        let t = if span == 0 { 0.0 } else { row as f32 / span as f32 };
+        let t = if span == 0 {
+            0.0
+        } else {
+            row as f32 / span as f32
+        };
         let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
         Color::TrueColor {
             r: mix(from.0, to.0),
@@ -1020,7 +1530,10 @@ fn print_boxed(lines: &[String], color: Color) {
     println!("{}", format!("╔{}╗", rule).color(color));
     for line in lines {
         let pad = width - line.chars().count();
-        println!("{}", format!("║ {}{} ║", line, " ".repeat(pad)).color(color));
+        println!(
+            "{}",
+            format!("║ {}{} ║", line, " ".repeat(pad)).color(color)
+        );
     }
     println!("{}", format!("╚{}╝", rule).color(color));
 }
@@ -1081,35 +1594,167 @@ fn print_hardware_info(sys: &System) {
     print_logo_banner();
     println!();
 
+    #[cfg(windows)]
+    let win_hw = WindowsHwData::fetch();
+
+    let serial = {
+        #[cfg(windows)]
+        {
+            win_hw.serial.clone().unwrap_or_else(get_serial)
+        }
+        #[cfg(not(windows))]
+        {
+            get_serial()
+        }
+    };
+
+    let ram_details = {
+        #[cfg(windows)]
+        {
+            let ty = win_hw.ram_type.clone().unwrap_or_else(get_ram_type);
+            let speed = win_hw.ram_speed.or_else(get_ram_speed_mhz);
+            let vendor = win_hw
+                .ram_vendor
+                .clone()
+                .unwrap_or_else(get_ram_manufacturer);
+            let base = match speed {
+                Some(mhz) if mhz > 0 => format!("{} @ {} MHz", ty, mhz),
+                _ => ty,
+            };
+            if vendor.is_empty() {
+                base
+            } else {
+                format!("{} ({})", base, vendor)
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            get_ram_details()
+        }
+    };
+
+    let disk_model = {
+        #[cfg(windows)]
+        {
+            win_hw.disk_model.clone().unwrap_or_else(get_disk_model)
+        }
+        #[cfg(not(windows))]
+        {
+            get_disk_model()
+        }
+    };
+
+    let disk_type = {
+        #[cfg(windows)]
+        {
+            if let (Some(m), Some(b)) = (&win_hw.disk_model, &win_hw.disk_bus) {
+                parse_disk_support_from_strings(m, b)
+            } else {
+                get_disk_support()
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            get_disk_support()
+        }
+    };
+
+    let ports = {
+        #[cfg(windows)]
+        {
+            if win_hw.usb > 0 || win_hw.video > 0 || win_hw.audio > 0 {
+                parse_ports(win_hw.usb, win_hw.video, win_hw.audio)
+            } else {
+                get_ports()
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            get_ports()
+        }
+    };
+
+    let battery = {
+        #[cfg(windows)]
+        {
+            let mut bat_pct = 0u8;
+            let mut bat_ac = 1u8;
+            unsafe {
+                let mut status: SYSTEM_POWER_STATUS = std::mem::zeroed();
+                if GetSystemPowerStatus(&mut status) != 0 {
+                    bat_pct = status.battery_life_percent;
+                    bat_ac = status.ac_line_status;
+                }
+            }
+            if bat_pct > 0 || bat_ac != 1 {
+                let s = match bat_ac {
+                    0 => "Discharging",
+                    1 => "AC",
+                    _ => "Unknown",
+                };
+                let health = match (win_hw.bat_static, win_hw.bat_full) {
+                    (Some(d), Some(f)) if d > 0.0 => Some((f / d * 100.0).round() as u32),
+                    _ => None,
+                };
+                match health {
+                    Some(h) => format!("{}% [{}] - Health {}%", bat_pct, s, h),
+                    None => format!("{}% [{}]", bat_pct, s),
+                }
+            } else {
+                "AC (No Battery)".to_string()
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            get_battery()
+        }
+    };
+
     let entries: Vec<(&str, String)> = vec![
         ("Motherboard", get_motherboard()),
         ("BIOS", get_bios()),
-        ("Serial", get_serial()),
+        ("Serial", serial),
         ("CPU", get_cpu_info(sys)),
         ("GPU", get_gpu()),
         ("Memory", get_memory(sys)),
-        ("RAM", get_ram_details()),
+        ("RAM", ram_details),
         ("Disk", get_disk()),
-        ("Disk Model", get_disk_model()),
-        ("Disk Type", get_disk_support()),
+        ("Disk Model", disk_model),
+        ("Disk Type", disk_type),
         ("Display", get_display()),
-        ("Ports", get_ports()),
+        ("Ports", ports),
         ("WiFi", get_wifi()),
-        ("Battery", get_battery()),
+        ("Battery", battery),
     ];
 
     let max_label = entries.iter().map(|(l, _)| l.len()).max().unwrap_or(0);
     let dot_colors = [
-        Color::BrightCyan, Color::BrightMagenta, Color::BrightBlue, Color::BrightYellow,
-        Color::BrightGreen, Color::BrightRed, Color::Cyan, Color::Magenta, Color::Blue,
-        Color::Yellow, Color::Green, Color::Red, Color::BrightWhite,
+        Color::BrightCyan,
+        Color::BrightMagenta,
+        Color::BrightBlue,
+        Color::BrightYellow,
+        Color::BrightGreen,
+        Color::BrightRed,
+        Color::Cyan,
+        Color::Magenta,
+        Color::Blue,
+        Color::Yellow,
+        Color::Green,
+        Color::Red,
+        Color::BrightWhite,
     ];
 
     for (i, (label, value)) in entries.iter().enumerate() {
         let dot = "●".color(dot_colors[i % dot_colors.len()]);
         let padded = format!("{:width$}", label, width = max_label);
         let sep = " ❯".bright_black();
-        println!(" {} {} {} {}", dot, padded.cyan().bold(), sep, value.white());
+        println!(
+            " {} {} {} {}",
+            dot,
+            padded.cyan().bold(),
+            sep,
+            value.white()
+        );
     }
 }
 
@@ -1184,16 +1829,32 @@ fn main() {
 
     let max_label = entries.iter().map(|(l, _)| l.len()).max().unwrap_or(0);
     let dot_colors = [
-        Color::BrightCyan, Color::BrightMagenta, Color::BrightBlue, Color::BrightYellow,
-        Color::BrightGreen, Color::BrightRed, Color::Cyan, Color::Magenta, Color::Blue,
-        Color::Yellow, Color::Green, Color::Red, Color::BrightWhite,
+        Color::BrightCyan,
+        Color::BrightMagenta,
+        Color::BrightBlue,
+        Color::BrightYellow,
+        Color::BrightGreen,
+        Color::BrightRed,
+        Color::Cyan,
+        Color::Magenta,
+        Color::Blue,
+        Color::Yellow,
+        Color::Green,
+        Color::Red,
+        Color::BrightWhite,
     ];
 
     for (i, (label, value)) in entries.iter().enumerate() {
         let dot = "●".color(dot_colors[i % dot_colors.len()]);
         let padded = format!("{:width$}", label, width = max_label);
         let sep = " ❯".bright_black();
-        println!(" {} {} {} {}", dot, padded.cyan().bold(), sep, value.white());
+        println!(
+            " {} {} {} {}",
+            dot,
+            padded.cyan().bold(),
+            sep,
+            value.white()
+        );
     }
     println!();
 }
@@ -1291,7 +1952,11 @@ mod tests {
     #[test]
     fn truecolor_gradient_spans_both_anchors() {
         let (from, to) = gradient_anchors();
-        let expect = |c: (u8, u8, u8)| Color::TrueColor { r: c.0, g: c.1, b: c.2 };
+        let expect = |c: (u8, u8, u8)| Color::TrueColor {
+            r: c.0,
+            g: c.1,
+            b: c.2,
+        };
         assert_eq!(logo_row_color(0, 6, true), expect(from));
         assert_eq!(logo_row_color(5, 6, true), expect(to));
         assert_eq!(logo_row_color(0, 3, true), expect(from));
@@ -1314,8 +1979,83 @@ mod tests {
         let (from, _) = gradient_anchors();
         assert_eq!(
             logo_row_color(0, 1, true),
-            Color::TrueColor { r: from.0, g: from.1, b: from.2 }
+            Color::TrueColor {
+                r: from.0,
+                g: from.1,
+                b: from.2
+            }
         );
         assert_eq!(logo_row_color(0, 1, false), logo_gradient()[0]);
+    }
+
+    #[test]
+    fn test_parse_wifi_windows() {
+        let sample = "\
+    Name                   : Wi-Fi\n\
+    State                  : connected\n\
+    SSID                   : TP-Link_58AC_5G\n\
+    Signal                 : 85%\n";
+        assert_eq!(parse_wifi_windows(sample), "TP-Link_58AC_5G (85%)");
+
+        let disconnected = "There is no wireless interface on the system.";
+        assert_eq!(parse_wifi_windows(disconnected), "None");
+    }
+
+    #[test]
+    fn test_parse_linux_battery() {
+        let res = parse_linux_battery("85", "Discharging", Some("50000000"), Some("45000000"));
+        assert_eq!(res, "85% [Discharging] - Health 90%");
+
+        let res_no_design = parse_linux_battery("99", "Charging", None, None);
+        assert_eq!(res_no_design, "99% [Charging]");
+    }
+
+    #[test]
+    fn test_parse_macos_battery() {
+        assert_eq!(
+            parse_macos_battery(Some("Now drawing from 'Battery Power' - 78%"), Some("154")),
+            "Now drawing from 'Battery Power' - 78% - 154 cycles"
+        );
+        assert_eq!(parse_macos_battery(None, None), "AC (No Battery)");
+    }
+
+    #[test]
+    fn test_parse_disk_support_from_strings() {
+        assert_eq!(
+            parse_disk_support_from_strings("Samsung NVMe 970", "NVMe"),
+            "NVMe SSD"
+        );
+        assert_eq!(
+            parse_disk_support_from_strings("Crucial SSD MX500", "SATA"),
+            "SATA SSD"
+        );
+        assert_eq!(
+            parse_disk_support_from_strings("WDC WD10EZEX HDD", "SATA"),
+            "HDD"
+        );
+        assert_eq!(
+            parse_disk_support_from_strings("Generic USB Drive", "USB"),
+            "Unknown"
+        );
+    }
+
+    #[test]
+    fn test_parse_ports() {
+        assert_eq!(parse_ports(4, 2, 1), "USB x4, Video Out x2, Audio x1");
+        assert_eq!(parse_ports(0, 0, 0), "Unknown");
+    }
+
+    #[test]
+    fn test_parse_package_count() {
+        let sample = "pkg1\npkg2\npkg3\n";
+        assert_eq!(parse_package_count(sample, 0), 3);
+        assert_eq!(parse_package_count(sample, 1), 2);
+    }
+
+    #[test]
+    fn test_validate_version_tag() {
+        assert!(validate_version_tag("v1.1.2", "1.1.2"));
+        assert!(validate_version_tag("1.1.2", "1.1.2"));
+        assert!(!validate_version_tag("v1.1.2", "1.1.1"));
     }
 }
