@@ -12,6 +12,25 @@ permissions:
   contents: write
 
 jobs:
+  # Verify that the pushed tag (vX.Y.Z) matches the version field in Cargo.toml.
+  # Runs only on tag pushes and gates build/release so a mismatch aborts before publish.
+  version-check:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CARGO=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "Tag:        $TAG"
+          echo "Cargo.toml: $CARGO"
+          if [ "v${CARGO}" != "${TAG}" ]; then
+            echo "::error::Tag '${TAG}' does not match Cargo.toml version '${CARGO}'. Bump version in Cargo.toml before tagging."
+            exit 1
+          fi
+          echo "Version match OK."
+
   # Gates every downstream job, including the release. Cross-compiled targets in
   # `build` cannot execute their own binaries, so the suite runs here on the
   # three native hosts instead. `build` depends on this, and `release` depends
@@ -50,8 +69,55 @@ jobs:
       - name: Check the committed Homebrew formula matches the generator
         run: python scripts/sync_package_manifests.py --check
 
+      - name: Build release binary for smoke test
+        run: cargo build --release --locked
+
+      - name: Smoke test (verify exit code 0 and no panic)
+        shell: bash
+        run: |
+          BIN="./target/release/angkorfetch"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            BIN="./target/release/angkorfetch.exe"
+          fi
+          echo "Testing version option (-v)..."
+          "$BIN" -v
+          echo "Testing default fetch..."
+          "$BIN"
+          echo "Testing hardware info (--hinfo)..."
+          "$BIN" --hinfo
+          echo "Smoke tests passed."
+
+
+  # Container test for installer compatibility on Alpine (musl) and Ubuntu 20.04 (glibc)
+  test-installer-containers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: alpine
+            image: alpine:latest
+            setup: apk add --no-cache bash curl tar
+          - name: ubuntu-2004
+            image: ubuntu:20.04
+            setup: apt-get update && apt-get install -y bash curl tar
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ${{ matrix.setup }}
+      - name: Shell syntax check (get.sh)
+        run: bash -n get.sh
+      - name: Shell syntax check (install.sh)
+        run: bash -n install.sh
+
   build:
-    needs: test
+    needs: [test, version-check]
+    if: |
+      always() &&
+      (needs.test.result == 'success') &&
+      (needs.version-check.result == 'success' || needs.version-check.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +125,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             asset: angkorfetch-linux-x86_64.tar.gz
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            asset: angkorfetch-linux-x86_64-musl.tar.gz
+            use_cross: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             asset: angkorfetch-linux-aarch64.tar.gz
@@ -229,7 +299,7 @@ jobs:
   # raced ahead and published before the .deb/.rpm finished uploading.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, packages, checksums]
+    needs: [build, packages, checksums, version-check]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -248,6 +318,7 @@ jobs:
           missing=0
           for f in \
             angkorfetch-linux-x86_64.tar.gz \
+            angkorfetch-linux-x86_64-musl.tar.gz \
             angkorfetch-linux-aarch64.tar.gz \
             angkorfetch-macos-x86_64.tar.gz \
             angkorfetch-macos-aarch64.tar.gz \

@@ -295,15 +295,15 @@ class WingetTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.old = self.root / sync.WINGET_BASE / "0.0.1"
-        write(self.old / "AngkorFetch.installer.yaml", self.INSTALLER)
-        write(self.old / "AngkorFetch.yaml", self.VERSION_MANIFEST)
+        write(self.old / "AMRSKH.AngkorFetch.installer.yaml", self.INSTALLER)
+        write(self.old / "AMRSKH.AngkorFetch.yaml", self.VERSION_MANIFEST)
 
     def test_renames_the_version_directory_and_updates_fields(self) -> None:
         sync.update_winget(self.root, VERSION, SUMS)
         new = self.root / sync.WINGET_BASE / VERSION
         self.assertTrue(new.is_dir())
         self.assertFalse(self.old.exists())
-        text = (new / "AngkorFetch.installer.yaml").read_text(encoding="utf-8")
+        text = (new / "AMRSKH.AngkorFetch.installer.yaml").read_text(encoding="utf-8")
         self.assertIn(f'PackageVersion: "{VERSION}"', text)
         self.assertIn(f"v{VERSION}/angkorfetch-windows-x86_64.zip", text)
         self.assertIn("5" * 64, text)
@@ -325,6 +325,43 @@ class WingetTests(unittest.TestCase):
         with self.assertRaises(sync.SyncError) as caught:
             sync.update_winget(self.root, VERSION, SUMS)
         self.assertIn("exactly one version directory", str(caught.exception))
+
+
+    def test_manifest_filenames_start_with_package_identifier(self) -> None:
+        """winget-pkgs requires every manifest filename in multi-file format to start with PackageIdentifier."""
+        sync.update_winget(self.root, VERSION, SUMS)
+        new = self.root / sync.WINGET_BASE / VERSION
+        manifests = list(new.glob("*.yaml"))
+        self.assertTrue(manifests, "expected at least one manifest")
+        pkg_id = "AMRSKH.AngkorFetch"
+        for manifest in manifests:
+            self.assertTrue(
+                manifest.name.startswith(f"{pkg_id}."),
+                f"manifest {manifest.name} must start with '{pkg_id}.'"
+            )
+
+    def test_repository_winget_manifests_start_with_package_identifier(self) -> None:
+        """The actual committed manifests in the repository must start with PackageIdentifier."""
+        repo_winget = Path(sync.WINGET_BASE)
+        for version_dir in repo_winget.iterdir():
+            if version_dir.is_dir():
+                for manifest in version_dir.glob("*.yaml"):
+                    self.assertTrue(
+                        manifest.name.startswith("AMRSKH.AngkorFetch."),
+                        f"committed manifest {manifest} does not start with 'AMRSKH.AngkorFetch.'"
+                    )
+
+    def test_fails_if_manifest_filename_does_not_start_with_package_identifier(self) -> None:
+        """Fail if any manifest does not match PackageIdentifier prefix."""
+        bad_root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        bad_old = bad_root / sync.WINGET_BASE / "0.0.1"
+        write(bad_old / "BadName.installer.yaml", self.INSTALLER)
+        sync.update_winget(bad_root, VERSION, SUMS)
+        bad_new = bad_root / sync.WINGET_BASE / VERSION
+        pkg_id = "AMRSKH.AngkorFetch"
+        with self.assertRaises(AssertionError):
+            for m in bad_new.glob("*.yaml"):
+                assert m.name.startswith(f"{pkg_id}."), f"does not start with {pkg_id}."
 
 
 if __name__ == "__main__":

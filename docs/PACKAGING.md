@@ -29,9 +29,9 @@ This document defines package specifications, manifest paths, validation workflo
 - **Status:** **Pending** community PR approval at [microsoft/winget-pkgs#409790](https://github.com/microsoft/winget-pkgs/pull/409790)
 
 ### Manifest Structure
-1. `AngkorFetch.yaml`: Version manifest referencing `en-US` locale.
-2. `AngkorFetch.installer.yaml`: Points to zip release binary with matching SHA256.
-3. `AngkorFetch.locale.en-US.yaml`: Metadata, description, tags, publisher URL, and moniker.
+1. `AMRSKH.AngkorFetch.yaml`: Version manifest referencing `en-US` locale.
+2. `AMRSKH.AngkorFetch.installer.yaml`: Points to zip release binary with matching SHA256.
+3. `AMRSKH.AngkorFetch.locale.en-US.yaml`: Metadata, description, tags, publisher URL, and moniker.
 
 ### Validation & Testing
 ```powershell
