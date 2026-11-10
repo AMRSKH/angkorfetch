@@ -204,6 +204,20 @@ Rules, ID lookup, statuses, and the template: [team/Tasks/README.md](team/Tasks/
 - Update the task file as work progresses; it is the shared state between roles and tools.
 - `Completed` only after validation passed, QA accepted, the work commit exists, and its hash is recorded.
 
+### Team responsibilities
+
+Work moves through four roles defined in [team/README.md](team/README.md):
+
+| Role | Responsibility | Edits |
+|---|---|---|
+| [Advisor](team/Advisor/README.md) | Approach, risks, affected platforms, test plan | Task file only |
+| [Dev](team/Dev/README.md) | Implementation and checks with real results | Code, tests, task file |
+| [QA Review](team/QA-Review/README.md) | Independent verification, severity-ranked findings, verdict | Task file only |
+| [Docs](team/Docs/README.md) | Documentation that matches verified behaviour | Docs, task file |
+
+QA acceptance is required before a task commit. QA findings go back to Dev until
+accepted or `Blocked`.
+
 ## 10. Definition of Done
 
 A task is `Completed` only when every applicable item holds. If an item cannot be
