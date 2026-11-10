@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-10
 Task: TASK-003
-Status: In Review
+Status: Completed
 
 # TASK-003: Pre-commit Gate and Tool Permissions
 
@@ -101,7 +101,7 @@ permissions documentation, not exercised by attempting a denied action.
 ## Git Commit
 
 - Commit Message: `chore(hooks): add pre-commit gate and Claude Code permissions [TASK-003]`
-- Commit Hash: recorded in the close commit
+- Commit Hash: `53ac833`
 
 ## Final Report
 
