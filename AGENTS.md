@@ -153,6 +153,11 @@ On machines where `python` is not on `PATH`, use `python3` or `py -3`.
 
 Approval already given for a specific action does not need to be requested again.
 
+Enforced where the tool supports it: `.claude/settings.json` denies Claude Code reads of
+`.env`, `.env.*`, `*.pem`, `*.key` and asks before `git push`, `git reset --hard`,
+`git clean`, `cargo add/remove/update/publish`, `pip install`, `gh pr create`, `gh release`.
+Other tools rely on their own approval prompts plus these written rules.
+
 ## 8. Git workflow
 
 - Branch model (see [docs/MAINTAINING.md](docs/MAINTAINING.md)): `main` is production and the
@@ -169,6 +174,25 @@ Approval already given for a specific action does not need to be requested again
   (never `git add -A` blindly), and confirm no secrets or unrelated changes are staged.
 - If any required check fails, do not create a success commit.
 - Never rewrite existing history to split old commits. Never push without approval.
+
+### Pre-commit hook
+
+`.githooks/pre-commit` (POSIX `sh`, no dependencies) aborts a commit when a check for the
+staged files fails. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+| Staged paths | Checks run |
+|---|---|
+| `*.rs`, `Cargo.toml`, `Cargo.lock` | `cargo fmt --check`, `cargo clippy --all-targets --all-features --locked -- -D warnings` |
+| `scripts/`, `Formula/`, `winget-pkgs/` | script unit tests, `sync_package_manifests.py --check` |
+| `*.sh` | `bash -n` on each staged script |
+
+The hook checks the working tree, so unstaged edits to the same files are checked too.
+It does not run `cargo test`; final validation does. Never bypass it with `--no-verify`
+without maintainer approval. If it fails, fix the cause and commit again.
 
 ## 9. Task management
 

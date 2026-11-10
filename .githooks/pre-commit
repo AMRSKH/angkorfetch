@@ -1,0 +1,56 @@
+#!/bin/sh
+# AngkorFetch pre-commit gate.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# Runs only the checks that match the staged files and aborts the commit when any
+# of them fails. Checks run against the working tree, so unstaged edits to the same
+# files are checked too. Bypassing (--no-verify) requires maintainer approval.
+
+set -eu
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$staged" ] || exit 0
+
+matches() {
+    printf '%s\n' "$staged" | grep -Eq "$1"
+}
+
+fail() {
+    printf 'pre-commit: %s\n' "$1" >&2
+    printf 'pre-commit: commit aborted. Fix the issue, re-stage, and commit again.\n' >&2
+    exit 1
+}
+
+run() {
+    printf 'pre-commit: %s\n' "$*"
+    "$@" || fail "failed: $*"
+}
+
+if matches '\.rs$|(^|/)Cargo\.(toml|lock)$'; then
+    command -v cargo >/dev/null 2>&1 || fail "cargo not found; install Rust from https://rustup.rs"
+    run cargo fmt --check
+    run cargo clippy --all-targets --all-features --locked -- -D warnings
+fi
+
+if matches '^(scripts|Formula|winget-pkgs)/'; then
+    py=""
+    for candidate in python3 python; do
+        if "$candidate" -c 'import sys' >/dev/null 2>&1; then
+            py=$candidate
+            break
+        fi
+    done
+    [ -n "$py" ] || fail "python 3 not found on PATH"
+    run "$py" -m unittest discover -s scripts -p "test_*.py"
+    run "$py" scripts/sync_package_manifests.py --check
+fi
+
+if matches '\.sh$'; then
+    command -v bash >/dev/null 2>&1 || fail "bash not found"
+    printf '%s\n' "$staged" | grep -E '\.sh$' | while IFS= read -r file; do
+        run bash -n "$file"
+    done
+fi
+
+exit 0
