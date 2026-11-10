@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-10
 Task: TASK-002
-Status: In Review
+Status: Completed
 
 # TASK-002: Central Agent Instructions
 
@@ -89,7 +89,7 @@ New: `AGENTS.md`, `CLAUDE.md`.
 ## Git Commit
 
 - Commit Message: `docs(agents): add central AGENTS.md and Claude Code entry point [TASK-002]`
-- Commit Hash: recorded in the close commit
+- Commit Hash: `568880a`
 
 ## Final Report
 
