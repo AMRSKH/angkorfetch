@@ -127,7 +127,7 @@ AngkorFetch reads native OS APIs directly rather than querying external shells o
    - Query `/sys/class/dmi/id/` for BIOS, product name, board vendor, and chassis data.
    - Query `/sys/class/power_supply/` for battery status and capacity.
    - Query `/sys/block/` for physical disks and NVMe/SATA models.
-   - Display resolution queried via `xrandr` (X11).
+   - Display resolution queried via `xrandr` (X11), then `wlr-randr` (Wayland), then the kernel DRM mode list in `/sys/class/drm`.
    - Packages queried across native package managers (`dpkg`, `rpm`, `pacman`, `apk`, `flatpak`, `snap`).
 
 3. **macOS**:

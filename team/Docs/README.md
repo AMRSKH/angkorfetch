@@ -35,7 +35,7 @@ Keeps every document consistent with what the code and packaging actually do.
 
 | Change | Document |
 |---|---|
-| New flag or output change | `README.md` (Options, Example Output), `print_help` text must match |
+| New flag or output change | `README.md` (Usage options table, Example Output), `print_help` text must match |
 | Build, test, lint, or tooling change | `docs/DEVELOPMENT.md`, `CONTRIBUTING.md`, `AGENTS.md` section 5 |
 | Release or CI change | `docs/RELEASING.md` |
 | Package manager status | `docs/PACKAGING.md` and the README status table |
