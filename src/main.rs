@@ -172,6 +172,7 @@ fn parse_macos_battery(batt: Option<&str>, cycles: Option<&str>) -> String {
     }
 }
 
+#[cfg(any(windows, test))]
 fn parse_disk_support_from_strings(model: &str, bus: &str) -> String {
     let upper = format!("{} {}", model, bus).to_uppercase();
     if upper.contains("NVME") {
@@ -185,6 +186,7 @@ fn parse_disk_support_from_strings(model: &str, bus: &str) -> String {
     }
 }
 
+#[cfg(any(windows, test))]
 fn parse_ports(usb: u32, video: u32, audio: u32) -> String {
     let mut parts = Vec::new();
     if usb > 0 {

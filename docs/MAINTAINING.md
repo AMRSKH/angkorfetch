@@ -98,7 +98,7 @@ git push origin vX.Y.Z
 
 ### Step 4: GitHub Actions Release Pipeline
 Pushing the `vX.Y.Z` tag automatically starts `.github/workflows/release.yml`:
-1. `test`: Runs tests across Ubuntu, Windows, and macOS.
+1. `test`: Checks formatting on Ubuntu, then runs Clippy and the tests on Ubuntu, Windows, and macOS.
 2. `build`: Compiles 5 release targets (Linux x86_64, Linux ARM64, macOS Intel, macOS Apple Silicon, Windows x64).
 3. `packages`: Generates `.deb` and `.rpm` packages.
 4. `checksums`: Generates `checksums.txt` containing SHA256 hashes for all 7 assets.

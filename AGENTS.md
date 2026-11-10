@@ -136,7 +136,7 @@ On machines where `python` is not on `PATH`, use `python3` or `py -3`.
 - **Never** read, print, copy, or commit `.env` files, tokens, keys, credentials, or certificates. This includes the `PACKAGE_SYNC_TOKEN` repository secret.
 - Never hand-edit SHA256 values in `Formula/` or `winget-pkgs/`. They come only from a release's `checksums.txt` through `scripts/sync_package_manifests.py`.
 - `get.sh` and `get.ps1` are executed by users via `curl | bash` and `irm | iex` from `main`. Treat every change to them as security-sensitive: download only from `github.com/AMRSKH/angkorfetch` release URLs over HTTPS and keep checksum verification intact.
-- Do not weaken CI gates (`test`, `version-check`, formula `--check`) or workflow `permissions`.
+- Do not weaken CI gates (`test` with its fmt, Clippy, and test steps; `version-check`; formula `--check`) or workflow `permissions`.
 - Documentation rules are not a security boundary. Respect the real permission settings of the tool you run in.
 
 ### Approval required (ask the maintainer first)

@@ -162,7 +162,7 @@ manual dispatch. Only the tag path publishes anything.
 
 | job | runs on | purpose |
 | --- | --- | --- |
-| `test` | ubuntu, windows, macos | `cargo test --release --locked` |
+| `test` | ubuntu, windows, macos | `cargo fmt --check` (ubuntu), Clippy with `-D warnings`, `cargo test --release --locked` |
 | `build` | 5 targets | builds and uploads each binary |
 | `packages` | tags only | builds `.deb` and `.rpm` |
 | `checksums` | tags only | `sha256sum` over every artifact |
@@ -170,7 +170,7 @@ manual dispatch. Only the tag path publishes anything.
 
 The `needs` graph is load-bearing, not incidental:
 
-- `build` needs `test`, so a failing test blocks the release transitively.
+- `build` needs `test`, so a failing format, Clippy, or test check blocks the release transitively.
   Cross-compiled targets cannot execute their own binaries, which is why tests
   run on native hosts in a separate job rather than inside the build matrix.
 - `checksums` needs `packages`, otherwise `checksums.txt` is generated from a
