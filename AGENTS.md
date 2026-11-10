@@ -255,7 +255,22 @@ Locations below were checked against each tool's official docs on 2026-11-10.
 | Cursor | Reads `AGENTS.md` natively; no `.cursor/rules/` needed |
 | Antigravity | Reads `AGENTS.md` natively as an always-on rule |
 
+### Commands
+
+`/task` is the main entry point; `/advisor`, `/dev`, `/qa-review`, `/doc` run one role.
+Canonical definitions: [team/Commands/](team/Commands/README.md).
+
+| Tool | Command files | Role subagents |
+|---|---|---|
+| Claude Code | `.claude/commands/` | `.claude/agents/` |
+| OpenCode | `.opencode/commands/` | `.opencode/agents/` |
+| Cursor | `.agents/skills/` | `.claude/agents/` (read for compatibility) |
+| Codex | `.agents/skills/` (invoke as `$task`) | `.codex/agents/*.toml` |
+| Antigravity | `.agents/skills/` | none (stages run sequentially) |
+
 Rules for tool-specific files:
 
 - Never copy sections of this file into a tool file. Point here instead.
 - Do not add a tool-specific file unless that tool needs it to discover something.
+- Change command behaviour in `team/Commands/`, not in the wrappers.
+- Keep role agent names identical across tools: `advisor`, `dev`, `qa-review`, `docs`.
