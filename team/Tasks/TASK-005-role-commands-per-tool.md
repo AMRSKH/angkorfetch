@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-10
 Task: TASK-005
-Status: In Review
+Status: Completed
 
 # TASK-005: Role Commands per Tool
 
@@ -101,7 +101,7 @@ New: `team/Commands/README.md` and five command definitions. Updated: AGENTS.md 
 ## Git Commit
 
 - Commit Message: `feat(harness): add role commands and subagents for supported tools [TASK-005]`
-- Commit Hash: recorded in the close commit
+- Commit Hash: `3ea7ae6`
 
 ## Final Report
 
