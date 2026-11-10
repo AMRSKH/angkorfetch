@@ -24,11 +24,16 @@ Reviews a task's changes, re-runs its checks, and returns a verdict with finding
 4. Check each acceptance criterion against the diff and the output you just produced.
 5. Review for regressions, platform parity, edge cases, security, conventions, and
    unrelated changes (checklist in [QA-Review/README.md](../QA-Review/README.md)).
-6. Write **QA Results**: verdict, commands and results, findings as
+6. Add a new `### Round N` subsection at the **top** of **QA Results** (newest first).
+   Its first line is exactly `Verdict: Accepted` or `Verdict: Changes requested`, or
+   `Verdict (docs): ...` for a documentation-only re-check; the `/task` resume table
+   reads the newest one. Then: commands and results, findings as
    `Severity | file:line | finding`, and what could not be verified.
 7. Verdict:
    - **Accepted**: leave `Status: In Review` for the `/task` flow to commit.
-   - **Changes requested**: set `Status: In Progress` so Dev picks up the findings.
+   - **Changes requested** (code review): set `Status: In Progress` so Dev picks up the findings.
+   - **`Verdict (docs): Changes requested`**: leave `Status: In Review`; the `/task` flow
+     sends the findings back to Docs, not Dev.
 
 ## Output
 

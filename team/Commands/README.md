@@ -35,8 +35,8 @@ Role agent names are the same everywhere: `advisor`, `dev`, `qa-review`, `docs`.
 |---|---|---|
 | Claude Code | Delegated to the role subagents with the Agent tool | Delegated to the matching subagent |
 | OpenCode | Delegated with the subagent tool | Run as the matching subagent (`subagent: true`) |
-| Cursor | The skill asks the agent to delegate to the shared subagents | Run in the current agent |
-| Codex | The skill asks Codex to delegate to the custom agents | Run in the current agent |
+| Cursor | The skill asks the agent to delegate to the shared subagents | `/qa-review` asks to run in the `qa-review` subagent; the others run in the current agent |
+| Codex | The skill asks Codex to delegate to the custom agents | `/qa-review` asks to run in the `qa-review` subagent; the others run in the current agent |
 | Antigravity | Sequential in one agent | Run in the current agent |
 
 When a stage does not run in a separate agent, the task file must say so.
@@ -58,6 +58,8 @@ When a stage does not run in a separate agent, the task file must say so.
   `/task` commands. The skills point to the same definitions, so both paths behave the same.
 - **`disable-model-invocation: true`** is honoured by Claude Code and Cursor. Other tools
   ignore it; the skill descriptions say to use them only on explicit request.
-- **Permissions**: Claude Code (`.claude/settings.json`) and OpenCode agents
-  (`permissions` deny `.env` reads) enforce part of AGENTS.md section 7. The other tools
-  rely on their own approval prompts and the written rules.
+- **Permissions**: only a subset of AGENTS.md section 7 is enforced (details there).
+  Claude Code: `.claude/settings.json`. OpenCode: the four role subagents deny reads of
+  `.env`, `.env.*`, `*.pem`, `*.key`; the primary agent that runs `/task` keeps OpenCode's
+  defaults (it asks before reading `.env`). Cursor, Codex, Antigravity: their own approval
+  prompts and the written rules only.

@@ -101,6 +101,11 @@ Documentation only. Verify the next-ID one-liners return `001` for this director
 Self-review by the main agent: template sections compared against the agreed template;
 the bash next-ID one-liner returns `TASK-001`. Independent QA is scheduled in TASK-006.
 
+**Process deviation (recorded in TASK-006):** this task was marked `Completed` after
+self-review only, before any independent QA ran. That breaks the Definition of Done.
+History was not rewritten. Independent QA of this task runs in TASK-006; its QA
+Results hold the verdict and how each finding was resolved.
+
 ## Documentation Updates
 
 New: `team/Tasks/README.md`, `team/Tasks/task_template.md`.

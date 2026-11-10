@@ -94,6 +94,11 @@ Linux and macOS hosts (no such host available; the script uses POSIX `sh` featur
 The Claude Code permission rules were checked for syntax against the Claude Code
 permissions documentation, not exercised by attempting a denied action.
 
+**Process deviation (recorded in TASK-006):** this task was marked `Completed` after
+self-review only, before any independent QA ran. That breaks the Definition of Done.
+History was not rewritten. Independent QA of this task runs in TASK-006; its QA
+Results hold the verdict and how each finding was resolved.
+
 ## Documentation Updates
 
 `AGENTS.md`: new section on the pre-commit hook and tool permissions.
@@ -106,7 +111,8 @@ permissions documentation, not exercised by attempting a denied action.
 ## Final Report
 
 Commits are now gated locally on format, lint, script tests, and shell syntax, scoped to
-what is staged. Claude Code enforces the secret-file and approval rules from AGENTS.md.
+what is staged. Claude Code enforces a subset of the AGENTS.md secret-file and approval
+rules (corrected and extended in TASK-006: PowerShell rules added, unenforced cases listed).
 
 ## Notes and Limitations
 

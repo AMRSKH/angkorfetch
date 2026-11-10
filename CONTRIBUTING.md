@@ -70,6 +70,16 @@ Ensure there are no Clippy warnings:
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
+## Pre-commit Hook
+
+The repository ships a dependency-free hook that runs the format, lint, and packaging
+checks matching your staged files and aborts the commit if one fails. Enable it once
+per clone:
+```bash
+git config core.hooksPath .githooks
+```
+Details: [AGENTS.md](AGENTS.md#pre-commit-hook).
+
 ## Coding Guidelines
 
 * **Idiomatic Rust**: Write clean, concise, readable code.

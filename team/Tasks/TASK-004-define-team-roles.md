@@ -68,7 +68,12 @@ Documentation only. Verify every relative link in `team/` resolves to an existin
 Self-review by the main agent. Link check over AGENTS.md, `team/README.md`, the four
 role READMEs, and this file: all relative links resolve except
 `team/README.md -> Commands/README.md` (two occurrences), which TASK-005 creates.
-Commands in the Dev check matrix were all run during TASK-001 inspection.
+Commands in the Dev check matrix ran in TASK-001, or in TASK-006 for the release build and `cargo run -- --hinfo` (corrected in TASK-006).
+
+**Process deviation (recorded in TASK-006):** this task was marked `Completed` after
+self-review only, before any independent QA ran. That breaks the Definition of Done.
+History was not rewritten. Independent QA of this task runs in TASK-006; its QA
+Results hold the verdict and how each finding was resolved.
 
 ## Documentation Updates
 

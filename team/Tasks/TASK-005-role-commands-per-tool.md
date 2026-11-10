@@ -69,7 +69,7 @@ TASK-002 (AGENTS.md), TASK-004 (role READMEs).
 - [x] Every configured tool has a documented location for all five commands.
 - [x] Role subagents exist for Claude Code, OpenCode, Cursor (shared), and Codex.
 - [x] All Markdown frontmatter parses as YAML; all Codex agent files parse as TOML.
-- [x] Discovery verified with Claude Code and OpenCode CLIs.
+- [x] Discovery verified where a local CLI allows it: Claude Code (commands and agents), OpenCode (agents only). Corrected in TASK-006.
 - [x] Unsupported features and unverified tools are documented.
 
 ## Testing Requirements
@@ -94,6 +94,11 @@ Not verified:
 - OpenCode slash command discovery (no CLI command lists commands).
 - Cursor, Codex, Antigravity discovery (no local CLI; based on official docs only).
 
+**Process deviation (recorded in TASK-006):** this task was marked `Completed` after
+self-review only, before any independent QA ran. That breaks the Definition of Done.
+History was not rewritten. Independent QA of this task runs in TASK-006; its QA
+Results hold the verdict and how each finding was resolved.
+
 ## Documentation Updates
 
 New: `team/Commands/README.md` and five command definitions. Updated: AGENTS.md section 12.
@@ -105,9 +110,11 @@ New: `team/Commands/README.md` and five command definitions. Updated: AGENTS.md 
 
 ## Final Report
 
-All five commands are available in Claude Code, OpenCode, Cursor, Codex, and Antigravity
-through one canonical definition each. Real subagent delegation is configured for Claude
-Code, OpenCode, Cursor, and Codex.
+All five commands are configured for Claude Code, OpenCode, Cursor, Codex, and Antigravity
+through one canonical definition each. Discovery is verified only for Claude Code (commands
+and agents) and OpenCode (agents); the rest follows official docs. Subagent delegation is
+configured, not exercised end to end, for Claude Code, OpenCode, Cursor, and Codex.
+(Corrected in TASK-006.)
 
 ## Notes and Limitations
 

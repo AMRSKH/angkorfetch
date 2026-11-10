@@ -35,9 +35,12 @@ is safe to commit. QA's acceptance is required before a task can be committed.
    | Medium | Edge case or quality issue likely to bite later | Yes, unless the maintainer accepts it |
    | Low | Style or clarity nit | No |
 
-6. Verdict: **Accepted**, or **Changes requested** with the findings (send the task back to
+6. Verdict, written as the first line of a new `### Round N` subsection at the top of
+   QA Results (newest first): `Verdict: Accepted`, or
+   `Verdict: Changes requested` with the findings (send the task back to
    Dev, `Status: In Progress`).
-7. Repeat on each resubmission until accepted, or set `Blocked` with the reason.
+7. Repeat on each resubmission until accepted. After three rejected rounds, set `Blocked`
+   with the reason and report to the maintainer.
 
 ## Deliverables
 

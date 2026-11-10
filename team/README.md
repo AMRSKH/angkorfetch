@@ -30,6 +30,7 @@ record per task.
   5. QA Review         independent verification                    -> task file
         reject -> back to 4 (Status: In Progress), repeat until accepted or Blocked
   6. Docs              update docs that the change affects         -> task file
+        docs changed -> QA Review re-checks the documentation diff
   7. Final validation  full validation from AGENTS.md, review git diff
   8. Commit            work commit [TASK-NNN], then close commit with the hash
   9. Final report      summary to the maintainer

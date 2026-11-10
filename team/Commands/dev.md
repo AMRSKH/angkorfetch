@@ -19,7 +19,8 @@ create the record first. Dev does not work without a task record for non-trivial
 
 1. Read [AGENTS.md](../../AGENTS.md), [Dev/README.md](../Dev/README.md), and the task file.
 2. If **QA Results** lists open findings, fix those only. Otherwise follow the
-   **Implementation Plan**. If there is no plan, run `/advisor TASK-NNN` first.
+   **Implementation Plan**. If there is no plan, stop and report that the Advisor stage
+   is missing (in the `/task` flow, Step 3 runs first).
 3. Set `Status: In Progress`.
 4. Implement the smallest change that meets the acceptance criteria. Add tests for new
    or changed `parse_*` functions.

@@ -106,6 +106,13 @@ cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
+### Pre-commit Hook
+`.githooks/pre-commit` runs the checks above (and the package manifest checks) for the
+files you stage, and aborts the commit on failure. Enable it once per clone:
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Platform-Specific Architecture
 
 AngkorFetch reads native OS APIs directly rather than querying external shells or interpreters whenever possible:

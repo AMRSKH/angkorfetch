@@ -57,7 +57,7 @@ TASK-001.
 ## Acceptance Criteria
 
 - [x] AGENTS.md contains every required section.
-- [x] Every command listed in AGENTS.md section 5 was run successfully during TASK-001 inspection.
+- [x] Every command listed in AGENTS.md section 5 ran successfully: in TASK-001, or in TASK-006 for `cargo build`, `cargo build --release --locked`, and `cargo run -- -v` / `--hinfo` (corrected in TASK-006).
 - [x] Claims about the code were checked against `src/main.rs`, `get.sh`, `get.ps1`, and the workflows.
 - [x] CLAUDE.md is a thin import, not a copy.
 - [x] AGENTS.md is under Codex's 32 KiB limit.
@@ -81,6 +81,11 @@ Self-review by the main agent. Sources used for tool discovery rules:
 
 Not verified by running each tool: discovery is taken from the docs above. TASK-006
 verifies discovery where a local CLI exists.
+
+**Process deviation (recorded in TASK-006):** this task was marked `Completed` after
+self-review only, before any independent QA ran. That breaks the Definition of Done.
+History was not rewritten. Independent QA of this task runs in TASK-006; its QA
+Results hold the verdict and how each finding was resolved.
 
 ## Documentation Updates
 

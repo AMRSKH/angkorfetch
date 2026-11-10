@@ -8,6 +8,12 @@ permissions:
   - action: read
     resource: "*.env.*"
     effect: deny
+  - action: read
+    resource: "*.pem"
+    effect: deny
+  - action: read
+    resource: "*.key"
+    effect: deny
 ---
 
 You are **Dev** for the AngkorFetch repository.

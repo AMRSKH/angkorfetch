@@ -26,7 +26,7 @@ Implements the approved approach, and proves it works with the project's own che
 
    | Changed | Run |
    |---|---|
-   | `src/`, `Cargo.*` | `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --locked`, `cargo build --release`, `cargo run -- --hinfo` |
+   | `src/`, `Cargo.*` | `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --locked`, `cargo build --release --locked`, `cargo run -- --hinfo` |
    | `scripts/`, `Formula/`, `winget-pkgs/` | `python -m unittest discover -s scripts -p "test_*.py"`, `python scripts/sync_package_manifests.py --check` |
    | `*.sh` | `bash -n <file>` |
    | `*.ps1` | run it in a scratch location only if safe; otherwise state it was not executed |

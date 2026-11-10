@@ -29,7 +29,7 @@ AUR, Flatpak, Snap). See [docs/PACKAGING.md](docs/PACKAGING.md) for the status o
 | Layer | Technology |
 |---|---|
 | Language | Rust, edition 2021, stable toolchain |
-| Build / deps | Cargo, `Cargo.lock` committed, always build with `--locked` in checks |
+| Build / deps | Cargo, `Cargo.lock` committed; `cargo test` and the CI test job use `--locked` |
 | Runtime crates | `sysinfo`, `colored`, `terminal_size` (the complete allowed list) |
 | Formatter / linter | `rustfmt` and `clippy`, default configuration (no config files) |
 | Packaging automation | Python 3 standard library only (`scripts/`) |
@@ -78,7 +78,7 @@ All commands run from the repository root.
 | Purpose | Command |
 |---|---|
 | Debug build | `cargo build` |
-| Release build | `cargo build --release` |
+| Release build | `cargo build --release --locked` |
 | Run | `cargo run --` / `cargo run -- --hinfo` / `cargo run -- -v` |
 | Rust tests | `cargo test --locked` |
 | Script tests | `python -m unittest discover -s scripts -p "test_*.py"` |
@@ -129,7 +129,7 @@ On machines where `python` is not on `PATH`, use `python3` or `py -3`.
 - Collectors return a printable `String`, never `Result` to `main`, and never print errors.
 - Subprocess helpers discard stderr and return `None` on non-zero exit or empty output.
 - Scripts in `scripts/` fail loudly with a non-zero exit code and a clear message; they must stay idempotent (identical bytes when already current).
-- Installers keep `set -euo pipefail` (shell) and `$ErrorActionPreference = "Stop"` (PowerShell), and abort before installing when a download or checksum verification fails.
+- Installers keep `set -euo pipefail` (shell) and `$ErrorActionPreference = "Stop"` (PowerShell). The quick installers (`get.sh`, `get.ps1`) verify the SHA256 from `checksums.txt` and abort before installing on any download or checksum failure. `install.sh` and `install.ps1` build from source and fetch rustup without checksum verification.
 
 ## 7. Security requirements
 
@@ -153,19 +153,29 @@ On machines where `python` is not on `PATH`, use `python3` or `py -3`.
 
 Approval already given for a specific action does not need to be requested again.
 
-Enforced where the tool supports it: `.claude/settings.json` denies Claude Code reads of
-`.env`, `.env.*`, `*.pem`, `*.key` and asks before `git push`, `git reset --hard`,
-`git clean`, `cargo add/remove/update/publish`, `pip install`, `gh pr create`, `gh release`.
-Other tools rely on their own approval prompts plus these written rules.
+A **subset** of these rules is enforced by tool settings; the rest relies on these written
+rules and each tool's own approval prompts:
+
+- Claude Code (`.claude/settings.json`): the Read tool is denied `.env`, `.env.*`, `*.pem`,
+  `*.key`. Both the Bash and PowerShell tools ask before `git push`, `git reset --hard`,
+  `git clean`, `git branch -D`, `git rebase`, `git commit --amend`, `git tag`,
+  `cargo add/remove/update/publish`, `pip`/`pip3`/`python -m pip install`, `gh pr create`,
+  `gh pr merge`, `gh release`, `gh workflow run`. Edits under `.github/workflows/` ask first.
+- OpenCode role subagents deny reads of `.env`, `.env.*`, `*.pem`, `*.key`.
+- Not enforced: shell commands that read a secret file (for example `cat .env`), and
+  command variants that do not start with the listed prefix (for example `git -C . push`).
 
 ## 8. Git workflow
 
-- Branch model (see [docs/MAINTAINING.md](docs/MAINTAINING.md)): `main` is production and the
-  release source; `dev` is integration; work happens on short-lived `feat/*`, `fix/*`,
-  `chore/*`, or `docs/*` branches.
+- Branch model ([docs/MAINTAINING.md](docs/MAINTAINING.md)): `main` is production and the
+  release source; `dev` is integration; `feat/*` and `fix/*` are short-lived topic
+  branches; `automation/sync-packages-*` is created by CI. The harness also uses `chore/*`
+  and `docs/*` for non-code work. Feature PRs target `dev`; urgent fixes and docs may
+  target `main` ([CONTRIBUTING.md](CONTRIBUTING.md)).
+- Do not edit directly on `main` or `dev`; start a topic branch first.
 - Commit messages follow Conventional Commits and end with the Task ID:
   `type(scope): imperative summary [TASK-NNN]`. Types in use: `feat`, `fix`, `docs`,
-  `chore`, `ci`, `refactor`, `test`.
+  `chore`, `ci`, `refactor`, `test`. Trivial changes without a task file omit the Task ID.
 - **One completed task, one work commit**, created immediately after the task passes
   validation and QA. No permission is needed for that local commit.
 - After the work commit, record its hash in the task file and commit only that file as
@@ -186,9 +196,9 @@ git config core.hooksPath .githooks
 
 | Staged paths | Checks run |
 |---|---|
-| `*.rs`, `Cargo.toml`, `Cargo.lock` | `cargo fmt --check`, `cargo clippy --all-targets --all-features --locked -- -D warnings` |
-| `scripts/`, `Formula/`, `winget-pkgs/` | script unit tests, `sync_package_manifests.py --check` |
-| `*.sh` | `bash -n` on each staged script |
+| `*.rs`, `Cargo.toml`, `Cargo.lock` (added, changed, or deleted) | `cargo fmt --check`, `cargo clippy --all-targets --all-features --locked -- -D warnings` |
+| `scripts/`, `Formula/`, `winget-pkgs/` (added, changed, or deleted) | script unit tests, `sync_package_manifests.py --check` (Python found as `python3`, `python`, or `py -3`) |
+| `*.sh` | `bash -n` on each staged script that still exists |
 
 The hook checks the working tree, so unstaged edits to the same files are checked too.
 It does not run `cargo test`; final validation does. Never bypass it with `--no-verify`
@@ -239,7 +249,7 @@ checked, write the reason in the task file. Never fabricate results.
 - User-facing behaviour changes update `README.md`; developer workflow changes update `docs/DEVELOPMENT.md` or `CONTRIBUTING.md`; release or packaging changes update `docs/RELEASING.md` or `docs/PACKAGING.md`.
 - Never mark a package or install method "Available" until it is published and verified. Use `[Pending]` or `[Planned]`.
 - Never document unimplemented or unverified behaviour as working.
-- New harness and task files start with the `Author` / `Date` / `Task` header. Source code, JSON, YAML, TOML, and manifests keep their own conventions; no Markdown headers inside them.
+- New harness and task files start with the `Author` / `Date` / `Task` header. Exempt: source code, JSON, YAML, TOML, manifests, and files a tool parses from the first line (`AGENTS.md`, `CLAUDE.md`, and the command, agent, and skill wrappers whose first line must be `---` frontmatter).
 - Keep docs concise; link instead of duplicating.
 
 ## 12. AI tool integration

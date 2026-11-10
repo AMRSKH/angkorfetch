@@ -8,6 +8,12 @@ permissions:
   - action: read
     resource: "*.env.*"
     effect: deny
+  - action: read
+    resource: "*.pem"
+    effect: deny
+  - action: read
+    resource: "*.key"
+    effect: deny
 ---
 
 You are **QA Review** for the AngkorFetch repository.

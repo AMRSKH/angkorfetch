@@ -9,7 +9,9 @@
 
 set -eu
 
-staged=$(git diff --cached --name-only --diff-filter=ACMR)
+# Area matching includes deletions (D): removing a .rs file or the golden fixture must
+# still trigger the checks. quotePath=false keeps non-ASCII names unquoted.
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRD)
 [ -n "$staged" ] || exit 0
 
 matches() {
@@ -35,22 +37,25 @@ fi
 
 if matches '^(scripts|Formula|winget-pkgs)/'; then
     py=""
-    for candidate in python3 python; do
-        if "$candidate" -c 'import sys' >/dev/null 2>&1; then
+    for candidate in "python3" "python" "py -3"; do
+        # Unquoted on purpose: "py -3" is a command plus an argument.
+        if $candidate -c 'import sys; sys.exit(sys.version_info[0] < 3)' >/dev/null 2>&1; then
             py=$candidate
             break
         fi
     done
-    [ -n "$py" ] || fail "python 3 not found on PATH"
-    run "$py" -m unittest discover -s scripts -p "test_*.py"
-    run "$py" scripts/sync_package_manifests.py --check
+    [ -n "$py" ] || fail "python 3 not found on PATH (tried python3, python, py -3)"
+    run $py -m unittest discover -s scripts -p "test_*.py"
+    run $py scripts/sync_package_manifests.py --check
 fi
 
 if matches '\.sh$'; then
     command -v bash >/dev/null 2>&1 || fail "bash not found"
-    printf '%s\n' "$staged" | grep -E '\.sh$' | while IFS= read -r file; do
-        run bash -n "$file"
-    done
+    # Syntax-check only files that still exist (not deletions).
+    git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR |
+        grep -E '\.sh$' | while IFS= read -r file; do
+            run bash -n "$file"
+        done
 fi
 
 exit 0

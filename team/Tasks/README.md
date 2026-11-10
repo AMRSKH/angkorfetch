@@ -65,7 +65,7 @@ Status: Pending
 |---|---|
 | Pending | Recorded, not started |
 | In Progress | Advisor or Dev is working on it |
-| In Review | Implementation done, QA Review is verifying |
+| In Review | Implementation done; QA Review, Docs, final validation, and the work commit are in progress |
 | Blocked | Cannot continue; the blocker is written in **Notes and Limitations** |
 | Completed | Verified, committed, and the commit hash is recorded |
 
@@ -77,12 +77,12 @@ acceptance criterion is unchecked or any required check failed.
 
 1. **Work commit**: all changes for the task plus its task file (status `In Review`),
    in one Conventional Commit that ends with the Task ID:
-   `fix(installer): refuse glibc asset on musl [TASK-004]`.
+   `fix(battery): read BAT1 when BAT0 is missing [TASK-012]`.
 2. **Close commit**: a commit cannot contain its own hash, so the hash is recorded
    afterwards. Update only the task file (commit hash, `Status: Completed`) and commit it as
-   `chore(tasks): close TASK-004 [TASK-004]`.
+   `chore(tasks): close TASK-012 [TASK-012]`.
 
-`git log --grep "TASK-004"` then shows the full history of a task. See
+`git log --grep "TASK-012"` then shows the full history of a task. See
 [AGENTS.md](../../AGENTS.md) for the full Git rules.
 
 ## Worked example
