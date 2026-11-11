@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-11
 Task: TASK-009
-Status: In Review
+Status: Completed
 
 # TASK-009: Align Packaging Docs With README
 
@@ -1142,7 +1142,7 @@ Not run: `cargo clippy` and `cargo test` (no Rust or `Cargo.*` change).
 ## Git Commit
 
 - Commit Message: `docs(packaging): align PACKAGING and Formula README with README statuses [TASK-009]`
-- Commit Hash:
+- Commit Hash: `c2e201ad931ed865e90dd8b4add97d6a6a00583d`
 
 ## Final Report
 
