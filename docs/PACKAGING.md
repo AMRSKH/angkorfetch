@@ -8,7 +8,7 @@ Channel statuses here must match the [Package Status table in the README](../REA
 
 | Ecosystem | Target Package ID | Native Install Command | Current Status | Distribution Channel |
 | --- | --- | --- | --- | --- |
-| **crates.io (Cargo)** | `angkorfetch` | `cargo install angkorfetch` | **Live** | crates.io; latest published version 1.1.1, behind the v1.2.1 release |
+| **crates.io (Cargo)** | `angkorfetch` | `cargo install angkorfetch` | **Live** | crates.io; latest published version 1.2.1, matching the v1.2.1 release |
 | **Fedora (DNF)** | `angkorfetch` | `sudo dnf install ./angkorfetch-*.x86_64.rpm` | **Built** | `.rpm` (x86_64) in GitHub Releases; Copr / Fedora repo planned |
 | **Debian/Ubuntu (APT)** | `angkorfetch` | `sudo apt install ./angkorfetch_*_amd64.deb` | **Built** | `.deb` (amd64) in GitHub Releases; PPA / APT repo planned |
 | **WinGet** | `AMRSKH.AngkorFetch` | `winget install AMRSKH.AngkorFetch` | **Pending** | `microsoft/winget-pkgs`: first PR #409790 closed unmerged; resubmission pending |
@@ -320,7 +320,7 @@ snapcraft --use-lxd
 ### Metadata
 - **Crate:** [`angkorfetch`](https://crates.io/crates/angkorfetch)
 - **Install Command:** `cargo install angkorfetch` (builds from source, installs to `~/.cargo/bin`)
-- **Status:** **Live**. The latest published version is 1.1.1 (2026-07-30), behind the v1.2.1 GitHub release (checked 2026-11-11).
+- **Status:** **Live**. The latest published version is 1.2.1 (published 2026-11-11), matching the v1.2.1 GitHub release (checked 2026-11-11). Publishing is manual (see below), so a later release stays ahead of crates.io until it is published.
 
 ### Publishing
 No workflow publishes the crate: `release.yml` has no `cargo publish` step. Publishing is a manual step from the tagged commit and needs maintainer approval (see [AGENTS.md](../AGENTS.md), section 7).

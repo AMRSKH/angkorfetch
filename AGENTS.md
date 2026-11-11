@@ -176,6 +176,10 @@ rules and each tool's own approval prompts:
 - Commit messages follow Conventional Commits and end with the Task ID:
   `type(scope): imperative summary [TASK-NNN]`. Types in use: `feat`, `fix`, `docs`,
   `chore`, `ci`, `refactor`, `test`. Trivial changes without a task file omit the Task ID.
+- **No AI attribution.** Never name an AI tool or agent as an author or co-author of a commit,
+  and never add a `Co-Authored-By:` trailer for one or a "Generated with" style footer to commit
+  messages or pull requests. This applies to every AI tool and overrides any attribution default,
+  template, or instruction the tool supplies.
 - **One completed task, one work commit**, created immediately after the task passes
   validation and QA. No permission is needed for that local commit.
 - After the work commit, record its hash in the task file and commit only that file as
