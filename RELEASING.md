@@ -1,7 +1,8 @@
 # Releasing AngkorFetch
 
-Reference for maintainers cutting a release. Everything below is automated except
-the version bump and the two pull request merges.
+Reference for maintainers cutting a release. The version bump, local verification, the
+tag, the two pull request merges, and the external channel steps
+([Cutting a release](#cutting-a-release), steps 6 and 7) are manual; the rest is automated.
 
 ## Overview
 
@@ -10,7 +11,7 @@ the version bump and the two pull request merges.
          │
          ▼
  ┌──────────────────────────── release.yml ────────────────────────────┐
- │  test ──► build (5 targets) ──► packages ──► checksums              │
+ │  test ──► build (6 targets) ──► packages ──► checksums              │
  │                                     └──────────► release            │
  │                                                     │               │
  │                                                     ▼               │
@@ -67,7 +68,7 @@ Version bump (Cargo.toml, specs, manifests)
 Git tag & push (vX.Y.Z)
   │
   ▼
-Release build (5 cross-platform targets)
+Release build (6 cross-platform targets)
   │
   ▼
 Packages (.deb & .rpm)
@@ -76,13 +77,13 @@ Packages (.deb & .rpm)
 Checksums (sha256sum -> checksums.txt)
   │
   ▼
-GitHub Release (attached 8 assets)
+GitHub Release (attached 9 assets)
   │
   ▼
 Package updates (sync-packages.yml rewrites Formula & winget)
   │
   ▼
-External package publication (WinGet PR, Homebrew tap/core, Copr, AUR, Flathub)
+External package publication (crates.io; once each is published: WinGet, homebrew-core, Copr, AUR, Flathub)
   │
   ▼
 Installation verification & Documentation verification
@@ -92,7 +93,7 @@ Installation verification & Documentation verification
 
 * **Automated (CI)**:
   - Multi-platform tests (Ubuntu, Windows, macOS)
-  - Cross-compilation for 5 target binaries
+  - Release builds for 6 target binaries
   - Generation of `.deb` and `.rpm` packages
   - Aggregation of `checksums.txt`
   - GitHub Release creation and asset publishing
@@ -103,11 +104,13 @@ Installation verification & Documentation verification
   - Reviewing and merging the `automation/sync-packages-vX.Y.Z` PR
   - Documentation status updates
 * **External Publication (Manual / Triggered Submissions)**:
-  - Submitting updated WinGet manifest to `microsoft/winget-pkgs`
-  - Syncing `Formula/angkorfetch.rb` to `AMRSKH/homebrew-tap`
-  - Triggering Copr build for Fedora DNF
-  - Submitting updated `PKGBUILD` to AUR for Arch Linux
-  - Opening PR on Flathub repository
+  - Publishing the crate to crates.io (manual `cargo publish`, needs maintainer approval)
+  - Once each channel is published (first submissions: [docs/PACKAGING.md](docs/PACKAGING.md)):
+    - Submitting updated WinGet manifest to `microsoft/winget-pkgs`
+    - Triggering Copr build for Fedora DNF
+    - Submitting updated `PKGBUILD` to AUR for Arch Linux
+    - Opening PR on Flathub repository
+  - Homebrew has no release step until the planned homebrew-core formula exists
 
 ## Cutting a release
 
@@ -145,15 +148,16 @@ Installation verification & Documentation verification
 
 5. **Review the auto-opened package sync pull request** (`automation/sync-packages-vX.Y.Z`) and merge it.
 
-6. **External Package Submissions**:
-   - **WinGet**: Submit to `microsoft/winget-pkgs` via `wingetcreate`.
-   - **Homebrew**: Update `Formula/angkorfetch.rb` in `AMRSKH/homebrew-tap`.
-   - **Fedora (DNF)**: Build in Copr `amrskh/angkorfetch`.
-   - **Arch Linux**: Publish `linux/arch/PKGBUILD` to AUR.
-   - **Flatpak**: Submit update to Flathub.
+6. **External Package Submissions** (manual; statuses are in the [Package Status table](README.md#package-status--availability), and first submissions are in [docs/PACKAGING.md](docs/PACKAGING.md)):
+   - **crates.io** (Live): Run `cargo publish --locked` from the tagged commit. No workflow does this, and it needs maintainer approval. See [docs/PACKAGING.md](docs/PACKAGING.md), section 8.
+   - **WinGet** (Pending): The package is not in `microsoft/winget-pkgs` yet, so resubmit it as a new package with `wingetcreate submit`. Use `wingetcreate update` only after the package has been merged. See [docs/PACKAGING.md](docs/PACKAGING.md), section 1.
+   - **Homebrew** (Planned, homebrew-core): No release step yet. `AMRSKH/homebrew-tap` is not the documented install path, and updating it is not part of a release.
+   - **Fedora (DNF)** (Built; the `.rpm` is already attached to the release): Build in Copr `amrskh/angkorfetch` once that project exists.
+   - **Arch Linux** (Planned): Once the package is on the AUR, publish the updated `linux/arch/PKGBUILD` there.
+   - **Flatpak** (Planned): Once the app is on Flathub, submit each update there.
 
 7. **Verify installation & documentation**:
-   Verify each package manager resolves the new version and update status tables accordingly.
+   Verify each published channel resolves the new version (the GitHub Release files and quick installers, plus crates.io after step 6) and update status tables accordingly.
 
 ## release.yml
 
@@ -163,7 +167,7 @@ manual dispatch. Only the tag path publishes anything.
 | job | runs on | purpose |
 | --- | --- | --- |
 | `test` | ubuntu, windows, macos | `cargo fmt --check` (ubuntu), Clippy with `-D warnings`, `cargo test --release --locked` |
-| `build` | 5 targets | builds and uploads each binary |
+| `build` | 6 targets | builds and uploads each binary |
 | `packages` | tags only | builds `.deb` and `.rpm` |
 | `checksums` | tags only | `sha256sum` over every artifact |
 | `release` | tags only | verifies completeness, publishes |
@@ -203,10 +207,11 @@ silently produces `1.2.0/home/runnerrc.1`.
 
 ### Expected assets
 
-A correct release publishes 8 assets:
+A correct release publishes 9 assets:
 
 ```
 angkorfetch-linux-x86_64.tar.gz
+angkorfetch-linux-x86_64-musl.tar.gz
 angkorfetch-linux-aarch64.tar.gz
 angkorfetch-macos-x86_64.tar.gz
 angkorfetch-macos-aarch64.tar.gz
@@ -216,7 +221,7 @@ angkorfetch-X.Y.Z-1.x86_64.rpm
 checksums.txt
 ```
 
-Six assets means the packages were dropped — check the `release` job's
+Seven assets means the packages were dropped — check the `release` job's
 `Verify all expected artifacts are present` step.
 
 ## sync-packages.yml
@@ -375,8 +380,10 @@ python -m unittest discover -s scripts -p 'test_*.py'
 `--check` re-renders using the version and digests the file itself declares, so
 it validates shape independently of which release the formula points at. Both run
 in the `test` job of `release.yml`, which `build` and therefore `release` depend
-on, so a formula that would fail audit blocks the tag rather than surfacing after
-publication.
+on, so a formula that differs from the generator's output blocks the release rather
+than surfacing after publication. CI does not run `brew audit`: the template is
+written to pass it, and the sync pull request asks the reviewer to run
+`brew audit --strict` on macOS if available.
 
 ### Why the formula lives in Formula/
 
@@ -388,9 +395,12 @@ how the unaudited shape survived as long as it did. `Formula/` is the only
 location where `brew audit --strict` actually inspects it, so both this
 repository and `AMRSKH/homebrew-tap` use it.
 
-The two copies are byte-identical by design; that is what the golden fixture
-pins. The tap is the user-facing one, so it is the canonical shape and this copy
-follows it.
+The unit tests compare the generator's output with the hand-maintained
+`scripts/testdata/angkorfetch.rb.golden`, which pins the formula's shape. Nothing
+in this repository or in CI reads or updates `AMRSKH/homebrew-tap`. The tap is not
+the documented install path, and its formula pointed to v1.1.1 on 2026-11-11,
+behind the v1.2.1 release. The planned Homebrew channel is `Homebrew/homebrew-core`,
+with a build-from-source formula; see [docs/PACKAGING.md](docs/PACKAGING.md), section 2.
 
 It fails rather than writing a definition it cannot verify: if an artifact
 required by the formula or referenced by a manifest is missing from
