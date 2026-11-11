@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git branch -D *)",
+      "Bash(git rebase *)",
+      "Bash(git commit --amend *)",
+      "Bash(git tag *)",
+      "Bash(cargo add *)",
+      "Bash(cargo remove *)",
+      "Bash(cargo update *)",
+      "Bash(cargo publish *)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(python -m pip install *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh release *)",
+      "Bash(gh workflow run *)",
+      "PowerShell(git push *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(git clean *)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git rebase *)",
+      "PowerShell(git commit --amend *)",
+      "PowerShell(git tag *)",
+      "PowerShell(cargo add *)",
+      "PowerShell(cargo remove *)",
+      "PowerShell(cargo update *)",
+      "PowerShell(cargo publish *)",
+      "PowerShell(pip install *)",
+      "PowerShell(pip3 install *)",
+      "PowerShell(python -m pip install *)",
+      "PowerShell(gh pr create *)",
+      "PowerShell(gh pr merge *)",
+      "PowerShell(gh release *)",
+      "PowerShell(gh workflow run *)",
+      "Edit(.github/workflows/**)"
+    ]
+  }
+}

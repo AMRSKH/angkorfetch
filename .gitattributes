@@ -12,3 +12,6 @@
 *.rb        text eol=lf
 *.golden    text eol=lf
 *.sh        text eol=lf
+
+# Git hooks run under sh on every OS; a CRLF shebang breaks them on Linux and macOS.
+.githooks/* text eol=lf

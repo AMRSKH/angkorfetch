@@ -1,6 +1,6 @@
 # Maintainer: AMRSKH <inforithseyhacambo@gmail.com>
 pkgname=angkorfetch
-pkgver=1.1.1
+pkgver=1.2.1
 pkgrel=1
 pkgdesc="A fast, cross-platform system fetch tool written in Rust"
 arch=('x86_64' 'aarch64')

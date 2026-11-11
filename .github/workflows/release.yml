@@ -46,6 +46,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       # Explicit rather than relying on the image default: `python` is not
       # guaranteed to resolve on every runner even where `python3` does.
@@ -53,6 +55,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
+      # Same checks the pre-commit hook and CONTRIBUTING.md require locally.
+      # Formatting does not depend on the host, so it runs once. Clippy runs on
+      # every host because `#[cfg(windows)]` and `#[cfg(not(windows))]` code is
+      # only compiled, and therefore only linted, on its own OS.
+      - name: Check formatting
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
       - name: Run tests
         run: cargo test --release --locked --verbose

@@ -41,7 +41,7 @@ Merge to main (via PR or direct merge when tests pass)
 Tag release vX.Y.Z
          │
          ▼
-CI builds 5 targets + .deb + .rpm + checksums.txt
+CI builds 6 targets + .deb + .rpm + checksums.txt
          │
          ▼
 sync-packages.yml opens automation PR for Homebrew & WinGet
@@ -50,7 +50,7 @@ sync-packages.yml opens automation PR for Homebrew & WinGet
 Review & Merge automation PR
          │
          ▼
-Submit / Verify external packages (Winget, Homebrew tap, Copr, AUR, Flathub)
+Submit / Verify external packages (crates.io; once each is published: WinGet, homebrew-core, Copr, AUR, Flathub)
          │
          ▼
 Update documentation status tables
@@ -98,11 +98,11 @@ git push origin vX.Y.Z
 
 ### Step 4: GitHub Actions Release Pipeline
 Pushing the `vX.Y.Z` tag automatically starts `.github/workflows/release.yml`:
-1. `test`: Runs tests across Ubuntu, Windows, and macOS.
-2. `build`: Compiles 5 release targets (Linux x86_64, Linux ARM64, macOS Intel, macOS Apple Silicon, Windows x64).
+1. `test`: Checks formatting on Ubuntu, then runs Clippy and the tests on Ubuntu, Windows, and macOS.
+2. `build`: Compiles 6 release targets (Linux x86_64, Linux x86_64 musl, Linux ARM64, macOS Intel, macOS Apple Silicon, Windows x64).
 3. `packages`: Generates `.deb` and `.rpm` packages.
-4. `checksums`: Generates `checksums.txt` containing SHA256 hashes for all 7 assets.
-5. `release`: Creates the GitHub Release and attaches all 8 assets.
+4. `checksums`: Generates `checksums.txt` containing SHA256 hashes for the 8 other assets.
+5. `release`: Creates the GitHub Release and attaches all 9 assets.
 6. `sync_packages`: Reusable workflow calls `sync-packages.yml` to download `checksums.txt`, patch Homebrew formula and WinGet manifests, and open a PR: `automation/sync-packages-vX.Y.Z`.
 
 ### Step 5: Review and Merge Manifest PR
@@ -115,25 +115,29 @@ Review the auto-generated pull request opened by `sync-packages.yml`. Verify:
 
 ## 4. External Package Manager Submissions
 
+Channel statuses are in the [Package Status table in the README](../README.md#package-status--availability). Of the channels below, only crates.io is published today. The `.deb` and `.rpm` files need no step here, because each release attaches them. Every other step applies once its channel is published; first submissions follow [PACKAGING.md](PACKAGING.md).
+
 ### WinGet (Windows Package Manager)
+**Status: Pending.** The package is not in `microsoft/winget-pkgs` yet, so the next submission is a new-package pull request: follow [PACKAGING.md](PACKAGING.md), section 1. Step 2 applies only after the package has been merged.
+
 1. Ensure the manifest under `winget-pkgs/manifests/a/AMRSKH/AngkorFetch/<version>/` is updated.
-2. Submit to `microsoft/winget-pkgs` via `wingetcreate`:
+2. Once the package is in `microsoft/winget-pkgs`, submit each later version via `wingetcreate`:
    ```powershell
-   wingetcreate update AMRSKH.AngkorFetch --version X.Y.Z -u https://github.com/AMRSKH/angkorfetch/releases/download/vX.Y.Z/angkorfetch-windows-x86_64.zip
+   wingetcreate update AMRSKH.AngkorFetch --version X.Y.Z --urls https://github.com/AMRSKH/angkorfetch/releases/download/vX.Y.Z/angkorfetch-windows-x86_64.zip --submit
    ```
 3. Monitor pull request at `https://github.com/microsoft/winget-pkgs/pulls`.
 
 ### Homebrew (macOS / Linux)
-1. The tap at `AMRSKH/homebrew-tap` is updated by copying `Formula/angkorfetch.rb` to the tap repo.
-2. Once Homebrew Core criteria are met, submit formula to `Homebrew/homebrew-core`.
+**Status: Planned (homebrew-core).** There is no Homebrew release step yet. The planned formula builds from source and goes to `Homebrew/homebrew-core`, so it is not the generated `Formula/angkorfetch.rb`. See [PACKAGING.md](PACKAGING.md), section 2.
+
+`AMRSKH/homebrew-tap` still exists, but it is not the documented install path, CI does not update it, and updating it is not part of a release.
 
 ### Fedora Copr (DNF)
-1. Trigger build in Copr:
-   ```bash
-   copr-cli build-package amrskh/angkorfetch --clone-url https://github.com/AMRSKH/angkorfetch.git
-   ```
+**Status: Built.** The `.rpm` is attached to each GitHub Release, and no Copr project serves it yet. To create the project, follow [PACKAGING.md](PACKAGING.md), section 3. Once it exists, trigger a Copr build for each release. The exact `copr-cli` command is not given here because it has not been verified; check `copr-cli --help` first.
 
 ### Arch Linux (AUR)
+**Status: Planned.** Not yet on the AUR; the first submission follows [PACKAGING.md](PACKAGING.md), section 5. The steps below apply to each release after that.
+
 1. Update `linux/arch/PKGBUILD` with new `pkgver` and SHA256.
 2. Generate `.SRCINFO`:
    ```bash
@@ -142,7 +146,16 @@ Review the auto-generated pull request opened by `sync-packages.yml`. Verify:
 3. Commit and push to AUR git repository.
 
 ### Flathub
+**Status: Planned.** Not yet on Flathub; the first submission follows [PACKAGING.md](PACKAGING.md), section 6. The step below applies to each release after that.
+
 1. Push updated manifest `flatpak/io.github.AMRSKH.angkorfetch.yml` to the Flathub app repository.
+
+### crates.io (Cargo)
+**Status: Live.** No workflow publishes the crate, so each release needs a manual publish from the tagged commit, with maintainer approval and a crates.io token. The published version can lag the release; see [PACKAGING.md](PACKAGING.md), section 8.
+```bash
+git switch --detach vX.Y.Z
+cargo publish --locked
+```
 
 ---
 

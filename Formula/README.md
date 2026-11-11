@@ -1,19 +1,27 @@
 # Homebrew formula for AngkorFetch
 
-Install from the tap:
+Homebrew is **Planned (homebrew-core)** (see [Package Status](../README.md#package-status--availability)),
+so there is no supported `brew install` command yet. To install today, use a quick-install script
+or `cargo install angkorfetch` ([Installation](../README.md#installation)).
 
-```bash
-brew install AMRSKH/tap/angkorfetch
-```
+## What this formula is
 
-## This is a mirror, not the source of truth
+`angkorfetch.rb` installs the prebuilt release archives for macOS and Linux (arm and intel).
+After each release, `.github/workflows/sync-packages.yml` regenerates it on the
+`automation/sync-packages-v<version>` branch, for a pull request into `main`.
 
-The user-facing formula lives in [AMRSKH/homebrew-tap](https://github.com/AMRSKH/homebrew-tap)
-at `Formula/angkorfetch.rb`. The copy here exists so this repository can also be
-tapped directly, and is kept **byte-identical** to the tap's.
+The [AMRSKH/homebrew-tap](https://github.com/AMRSKH/homebrew-tap) repository still exists and
+holds a copy of this formula, but it is no longer the documented install path and CI does not
+update it. Its formula points to v1.1.1 (checked 2026-11-11), behind the v1.2.1 release.
 
-Both are generated. Do not edit `angkorfetch.rb` by hand — the next release will
-overwrite it. Change the template in `render_homebrew_formula()` in
+The planned homebrew-core formula builds from source (commit `c40983a`), so it will not be this file.
+
+This README is hand-written; `scripts/sync_package_manifests.py` neither generates nor checks it.
+
+## Do not edit angkorfetch.rb by hand
+
+`angkorfetch.rb` is generated, and the next release's sync pull request overwrites it. Change the
+template in `render_homebrew_formula()` in
 [`scripts/sync_package_manifests.py`](../scripts/sync_package_manifests.py) and
 update `scripts/testdata/angkorfetch.rb.golden`. CI fails otherwise:
 
