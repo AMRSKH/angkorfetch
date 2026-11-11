@@ -10,9 +10,9 @@ or `cargo install angkorfetch` ([Installation](../README.md#installation)).
 After each release, `.github/workflows/sync-packages.yml` regenerates it on the
 `automation/sync-packages-v<version>` branch, for a pull request into `main`.
 
-The [AMRSKH/homebrew-tap](https://github.com/AMRSKH/homebrew-tap) repository still exists and
-holds a copy of this formula, but it is no longer the documented install path and CI does not
-update it. Its formula points to v1.1.1 (checked 2026-11-11), behind the v1.2.1 release.
+The [AMRSKH/homebrew-tap](https://github.com/AMRSKH/homebrew-tap) repository still exists, but it
+is no longer the documented install path and CI does not update it. Its formula points to v1.1.1
+(checked 2026-11-11), behind the v1.2.1 release, so it is no longer a copy of `angkorfetch.rb`.
 
 The planned homebrew-core formula builds from source (commit `c40983a`), so it will not be this file.
 
