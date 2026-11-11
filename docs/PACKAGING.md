@@ -128,13 +128,14 @@ brew uninstall angkorfetch
 ### Building the RPM
 The release `.rpm` does not use the files in `linux/rpm/`. On tag pushes, the `packages` job in `.github/workflows/release.yml` writes its own spec and packages the binary it just compiled with `rpmbuild`; the `release` job attaches the result to the release.
 
-`linux/rpm/angkorfetch.spec` and `linux/rpm/build-rpm.sh` build from source, for Copr or a Fedora review. They are not run in CI and need fixes before use:
+`linux/rpm/angkorfetch.spec` and `linux/rpm/build-rpm.sh` build from source, for Copr or a Fedora review. They are not run in CI. The helper needs `git`, `rpmbuild`, and the `cargo` RPM, and runs from any directory:
 
-- `build-rpm.sh` copies `angkorfetch.spec` by a relative path, so it has to run from `linux/rpm/` (even there it fails: from `linux/rpm/`, `git archive ... HEAD` packs only that directory, so the archive has no `Cargo.toml`; see also the next item):
-  ```bash
-  cd linux/rpm && bash build-rpm.sh
-  ```
-- It writes the source archive as `angkorfetch-<version>.tar.gz`, but `rpmbuild` looks for the file name at the end of the spec's `Source0` URL (`v<version>.tar.gz`).
+```bash
+bash linux/rpm/build-rpm.sh
+```
+
+- It archives the whole repository at the committed `HEAD` (uncommitted changes are left out) into `~/rpmbuild/SOURCES/v<version>.tar.gz`, the file name at the end of the spec's `Source0` URL, under the top directory `angkorfetch-<version>/` that `%setup -q` expects. The archive equals the published `v<version>` source only when `HEAD` is that tag.
+- A full `rpmbuild` run with these files has not been verified; only the archive step has been tested, with `rpmbuild` stubbed. The spec's `cargo build` downloads crates, so the build needs network access.
 - Both files set the version by hand (`VERSION`, `Version:`); keep them in step with `Cargo.toml` (see [RELEASING.md](../RELEASING.md#cutting-a-release), step 1).
 
 ### Target Distribution Workflow
