@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-11
 Task: TASK-012
-Status: In Review
+Status: Completed
 
 # TASK-012: Document The Contributor Workflow And The No-AI-Attribution Rule
 
@@ -401,7 +401,7 @@ Not run: Rust checks and installer syntax (no matching file changed).
 ## Git Commit
 
 - Commit Message: `docs(contributing): document branches, AI tool use, and no AI attribution [TASK-012]`
-- Commit Hash:
+- Commit Hash: `bf7acfae6d14bcf4dd75f8197d230031cfd31c9e`
 
 ## Final Report
 
