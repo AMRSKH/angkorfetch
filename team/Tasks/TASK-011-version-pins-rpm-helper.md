@@ -1,7 +1,7 @@
 Author: AI Agent (Claude Code)
 Date: 2026-11-11
 Task: TASK-011
-Status: In Review
+Status: Completed
 
 # TASK-011: Update Package Version Pins And Fix The RPM Build Helper
 
@@ -477,7 +477,7 @@ Not run: Rust checks (no Rust or `Cargo.*` change).
 ## Git Commit
 
 - Commit Message: `fix(packaging): update version pins to 1.2.1 and repair the RPM helper [TASK-011]`
-- Commit Hash:
+- Commit Hash: `ec1aed544b97f7db37fd5e34fd069e4c12852d22`
 
 ## Final Report
 
